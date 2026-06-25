@@ -1,8 +1,13 @@
-export default function Home() {
-  return (
-    <main style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>Caissa LMS</h1>
-      <p style={{ color: '#666', marginTop: '8px' }}>Coach Training Platform — Coming Soon</p>
-    </main>
-  )
+import { redirect } from 'next/navigation'
+
+export default function Home({ searchParams }) {
+  const queryEntries = Object.entries(searchParams || {})
+    .filter(([, value]) => typeof value === 'string')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+
+  if (searchParams?.code) {
+    redirect(`/auth/callback?${queryEntries.join('&')}`)
+  }
+
+  redirect('/login')
 }
