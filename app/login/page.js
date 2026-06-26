@@ -1,29 +1,32 @@
 'use client'
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
-  const [sent, setSent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
 
-  async function handleLogin() {
+  async function handleSendCode() {
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
+    const res = await fetch('/api/send-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
     })
-    if (error) {
-      setError(error.message)
+    const data = await res.json()
+    if (data.error) {
+      setError(data.error)
+      setLoading(false)
     } else {
-      setSent(true)
+      router.push(`/verify?email=${encodeURIComponent(email)}`)
     }
-    setLoading(false)
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && email) handleSendCode()
   }
 
   return (
@@ -43,48 +46,41 @@ export default function LoginPage() {
           Coach Training Portal
         </p>
 
-        {sent ? (
-          <div style={{ textAlign: 'center', color: '#333' }}>
-            <div style={{ fontSize: '2rem', marginBottom: '12px' }}>📬</div>
-            <p style={{ fontWeight: 'bold' }}>Check your email</p>
-            <p style={{ color: '#666', fontSize: '0.9rem', marginTop: '8px' }}>
-              We sent a login link to <strong>{email}</strong>
-            </p>
-          </div>
-        ) : (
-          <>
-            <label style={{ fontSize: '0.85rem', color: '#444', fontWeight: '500' }}>
-              Email address
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              style={{
-                width: '100%', padding: '10px 12px', marginTop: '6px',
-                marginBottom: '16px', border: '1px solid #ddd', borderRadius: '8px',
-                fontSize: '0.95rem', boxSizing: 'border-box'
-              }}
-            />
-            {error && (
-              <p style={{ color: 'red', fontSize: '0.85rem', marginBottom: '12px' }}>
-                {error}
-              </p>
-            )}
-            <button
-              onClick={handleLogin}
-              disabled={loading || !email}
-              style={{
-                width: '100%', padding: '11px', background: '#1a1a1a',
-                color: 'white', border: 'none', borderRadius: '8px',
-                fontSize: '0.95rem', cursor: 'pointer', fontWeight: '500'
-              }}
-            >
-              {loading ? 'Sending...' : 'Send Login Link'}
-            </button>
-          </>
+        <label style={{ fontSize: '0.85rem', color: '#444', fontWeight: '500' }}>
+          Email address
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="you@example.com"
+          autoFocus
+          style={{
+            width: '100%', padding: '10px 12px', marginTop: '6px',
+            marginBottom: '16px', border: '1px solid #ddd', borderRadius: '8px',
+            fontSize: '0.95rem', boxSizing: 'border-box'
+          }}
+        />
+
+        {error && (
+          <p style={{ color: 'red', fontSize: '0.85rem', marginBottom: '12px' }}>
+            {error}
+          </p>
         )}
+
+        <button
+          onClick={handleSendCode}
+          disabled={loading || !email}
+          style={{
+            width: '100%', padding: '11px', background: '#1a1a1a',
+            color: 'white', border: 'none', borderRadius: '8px',
+            fontSize: '0.95rem', cursor: 'pointer', fontWeight: '500',
+            opacity: !email ? 0.6 : 1
+          }}
+        >
+          {loading ? 'Sending...' : 'Send Login Code'}
+        </button>
       </div>
     </main>
   )
