@@ -41,8 +41,17 @@ export async function POST(request) {
 
       console.log(`[Caissa LMS] Email sent: ${info.messageId} → ${email}`)
     } catch (err) {
-      console.error(`[Caissa LMS] Email FAILED for ${email}: code=${err.code} response=${err.response} message=${err.message}`)
-      return NextResponse.json({ error: 'Failed to send email. Try again.' }, { status: 500 })
+      console.error('[Caissa LMS] Email FAILED:', JSON.stringify({
+        email,
+        code: err.code,
+        command: err.command,
+        responseCode: err.responseCode,
+        response: err.response,
+        message: err.message,
+        gmailUser: process.env.GMAIL_USER,
+        passLength: process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, '').length,
+      }))
+      return NextResponse.json({ error: err.message || 'Failed to send email.' }, { status: 500 })
     }
   }
 
