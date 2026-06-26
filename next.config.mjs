@@ -1,6 +1,4 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  serverExternalPackages: ['nodemailer'],
-};
+const nextConfig = {};
 
 export default nextConfig;
