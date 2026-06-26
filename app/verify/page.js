@@ -1,6 +1,7 @@
 'use client'
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import Image from 'next/image'
 
 function VerifyForm() {
   const [code, setCode] = useState('')
@@ -28,84 +29,107 @@ function VerifyForm() {
     }
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter') handleVerify()
-  }
-
   return (
-    <main style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif',
-      background: '#f9f9f9'
-    }}>
+    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'Inter, sans-serif' }}>
+      {/* Left panel */}
       <div style={{
-        background: 'white', padding: '40px', borderRadius: '12px',
-        boxShadow: '0 2px 16px rgba(0,0,0,0.08)', width: '100%', maxWidth: '400px'
+        flex: 1, background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)',
+        display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+        padding: '48px', color: 'white',
       }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '4px' }}>
-          Caissa LMS
-        </h1>
-        <p style={{ color: '#666', marginBottom: '24px', fontSize: '0.9rem' }}>
-          Coach Training Portal
-        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Image src="/cc_logo.svg" alt="Caissa" width={40} height={40} />
+          <div>
+            <div style={{ fontWeight: '700', fontSize: '1.1rem', letterSpacing: '0.05em' }}>CAISSA LMS</div>
+            <div style={{ fontSize: '0.7rem', color: '#c4b5fd', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Coach Training Portal</div>
+          </div>
+        </div>
 
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📬</div>
-          <p style={{ fontWeight: '600', marginBottom: '4px' }}>Check your email</p>
-          <p style={{ color: '#666', fontSize: '0.85rem' }}>
-            We sent a 6-digit code to <strong>{email}</strong>
+        <div>
+          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📬</div>
+          <h1 style={{ fontSize: '2.2rem', fontWeight: '800', lineHeight: '1.2', margin: '0 0 12px' }}>
+            Check your inbox
+          </h1>
+          <p style={{ color: '#c4b5fd', fontSize: '1rem', lineHeight: '1.7', maxWidth: '340px', margin: 0 }}>
+            We sent a 6-digit verification code to<br />
+            <strong style={{ color: 'white' }}>{email}</strong>
           </p>
         </div>
 
-        <label style={{ fontSize: '0.85rem', color: '#444', fontWeight: '500' }}>
-          Verification code
-        </label>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={code}
-          onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          onKeyDown={handleKeyDown}
-          placeholder="000000"
-          autoFocus
-          style={{
-            width: '100%', padding: '12px', marginTop: '6px', marginBottom: '16px',
-            border: '1px solid #ddd', borderRadius: '8px', fontSize: '1.4rem',
-            letterSpacing: '8px', textAlign: 'center', boxSizing: 'border-box',
-            fontFamily: 'monospace'
-          }}
-        />
+        <p style={{ color: '#7c6fcd', fontSize: '0.82rem' }}>
+          Didn't receive it? Check your spam folder or go back to request a new code.
+        </p>
+      </div>
+
+      {/* Right panel */}
+      <div style={{
+        width: '480px', background: 'white', display: 'flex',
+        flexDirection: 'column', justifyContent: 'center', padding: '64px 56px',
+      }}>
+        <div style={{ marginBottom: '40px' }}>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#111827', margin: '0 0 8px' }}>
+            Enter your code
+          </h2>
+          <p style={{ color: '#6b7280', fontSize: '0.95rem', margin: 0 }}>
+            Type the 6-digit code from your email
+          </p>
+        </div>
+
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
+            Verification code
+          </label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onKeyDown={e => e.key === 'Enter' && handleVerify()}
+            placeholder="000000"
+            autoFocus
+            style={{
+              width: '100%', padding: '16px 14px', border: '1.5px solid #e5e7eb',
+              borderRadius: '10px', fontSize: '2rem', letterSpacing: '12px',
+              textAlign: 'center', fontFamily: 'monospace', outline: 'none',
+              boxSizing: 'border-box', transition: 'border-color 0.2s',
+            }}
+            onFocus={e => e.target.style.borderColor = '#7c3aed'}
+            onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+          />
+        </div>
 
         {error && (
-          <p style={{ color: 'red', fontSize: '0.85rem', marginBottom: '12px' }}>
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '0.85rem', marginBottom: '16px' }}>
             {error}
-          </p>
+          </div>
         )}
 
         <button
           onClick={handleVerify}
           disabled={loading || code.length !== 6}
           style={{
-            width: '100%', padding: '11px', background: '#1a1a1a',
-            color: 'white', border: 'none', borderRadius: '8px',
-            fontSize: '0.95rem', cursor: code.length === 6 ? 'pointer' : 'not-allowed',
-            fontWeight: '500', opacity: code.length !== 6 ? 0.6 : 1
+            width: '100%', padding: '13px', borderRadius: '10px', border: 'none',
+            background: code.length === 6 && !loading ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : '#e5e7eb',
+            color: code.length === 6 && !loading ? 'white' : '#9ca3af',
+            fontSize: '0.95rem', fontWeight: '600', cursor: code.length === 6 ? 'pointer' : 'not-allowed',
+            transition: 'all 0.2s', fontFamily: 'inherit',
           }}
         >
-          {loading ? 'Verifying...' : 'Verify Code'}
+          {loading ? 'Verifying…' : 'Verify & Sign In →'}
         </button>
 
         <button
           onClick={() => router.push('/login')}
           style={{
-            width: '100%', marginTop: '12px', padding: '10px', background: 'transparent',
-            color: '#666', border: 'none', fontSize: '0.85rem', cursor: 'pointer'
+            width: '100%', marginTop: '12px', padding: '12px', background: 'transparent',
+            color: '#7c3aed', border: '1.5px solid #ede9fe', borderRadius: '10px',
+            fontSize: '0.9rem', fontWeight: '500', cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
           ← Back to login
         </button>
       </div>
-    </main>
+    </div>
   )
 }
 
