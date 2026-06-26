@@ -73,6 +73,10 @@ export default function LoginPage() {
         width: '480px', background: 'white', display: 'flex',
         flexDirection: 'column', justifyContent: 'center', padding: '64px 56px',
       }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '32px' }}>
+          <Image src="/cc_logo.png" alt="Caissa" width={64} height={64} style={{ borderRadius: '16px' }} />
+        </div>
+
         <div style={{ marginBottom: '40px' }}>
           <h2 style={{ fontSize: '1.75rem', fontWeight: '700', color: '#111827', margin: '0 0 8px' }}>
             Welcome back
