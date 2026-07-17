@@ -37,7 +37,7 @@ export default function LoginPage() {
       }}>
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Image src="/cc_logo.svg" alt="Caissa" width={40} height={40} />
+          <Image src="/cc_logo.png" alt="Caissa" width={40} height={40} />
           <div>
             <div style={{ fontWeight: '700', fontSize: '1.1rem', letterSpacing: '0.05em' }}>CAISSA LMS</div>
             <div style={{ fontSize: '0.7rem', color: '#c4b5fd', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Coach Training Portal</div>
