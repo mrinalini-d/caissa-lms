@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isAdminEmail } from './lib/admin'
 
 export function middleware(request) {
   const session = request.cookies.get('caissa_session')
@@ -6,6 +7,12 @@ export function middleware(request) {
   if (!session?.value) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  if (request.nextUrl.pathname.startsWith('/admin') && !isAdminEmail(session.value)) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
