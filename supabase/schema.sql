@@ -68,6 +68,14 @@ create table if not exists quiz_attempts (
   created_at timestamptz not null default now()
 );
 
+-- Login OTP codes. In-memory storage doesn't survive across separate
+-- serverless function instances on Vercel, so this must be persisted.
+create table if not exists login_codes (
+  email text primary key,
+  code text not null,
+  expires_at timestamptz not null
+);
+
 create index if not exists idx_modules_chapter on modules(chapter_id);
 create index if not exists idx_questions_module on questions(module_id);
 create index if not exists idx_options_question on options(question_id);
@@ -82,3 +90,4 @@ alter table questions enable row level security;
 alter table options enable row level security;
 alter table user_progress enable row level security;
 alter table quiz_attempts enable row level security;
+alter table login_codes enable row level security;

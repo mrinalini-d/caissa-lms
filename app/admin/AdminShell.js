@@ -20,38 +20,39 @@ export default function AdminShell({ user, title, subtitle, children }) {
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
       <aside style={{
-        width: '240px', minWidth: '240px', background: '#0f0e1a',
+        width: '240px', minWidth: '240px', background: '#ffffff',
+        borderRight: '1px solid #f0f0f3',
         display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
       }}>
-        <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid #f3f4f6' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Image src="/cc_logo.png" alt="Caissa" width={36} height={36} />
-            <div style={{ color: '#a78bfa', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            <div style={{ color: '#7c3aed', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
               Admin Panel
             </div>
           </div>
         </div>
 
-        <nav style={{ flex: 1, padding: '16px 12px 0', overflowY: 'auto', display: 'flex', gap: '8px' }}>
+        <nav style={{ flex: 1, padding: '16px 12px 0', overflowY: 'auto' }}>
           {NAV_ITEMS.map(({ icon, label, href }) => {
             const isActive = pathname?.startsWith(href)
             return (
               <button key={label} onClick={() => router.push(href)} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-                flex: 1, padding: '14px 8px', borderRadius: '10px', border: 'none',
-                background: isActive ? 'rgba(124,58,237,0.2)' : 'transparent',
-                color: isActive ? '#a78bfa' : '#6b7280',
-                fontSize: '0.78rem', fontWeight: isActive ? '600' : '400',
-                cursor: 'pointer', transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: '12px', width: '100%',
+                padding: '11px 14px', borderRadius: '10px', border: 'none', marginBottom: '4px',
+                background: isActive ? '#f3eeff' : 'transparent',
+                color: isActive ? '#7c3aed' : '#6b7280',
+                fontSize: '0.85rem', fontWeight: isActive ? '600' : '500',
+                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
               }}>
-                <span style={{ fontSize: '1.3rem' }}>{icon}</span>
+                <span style={{ fontSize: '1.1rem', width: '20px', textAlign: 'center' }}>{icon}</span>
                 {label}
               </button>
             )
           })}
         </nav>
 
-        <div style={{ padding: 12 }}>
+        <div style={{ padding: 12, borderTop: '1px solid #f3f4f6' }}>
           <button onClick={() => router.push('/dashboard')} style={{
             width: '100%', padding: '10px 12px', borderRadius: '8px', border: 'none',
             background: 'transparent', color: '#6b7280', fontSize: '0.8rem', cursor: 'pointer', textAlign: 'left',

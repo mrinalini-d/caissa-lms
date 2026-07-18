@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
-
-if (!global._caissaCodes) global._caissaCodes = new Map()
-const codes = global._caissaCodes
+import { supabaseAdmin } from '@/lib/supabase'
 
 export async function POST(request) {
   const { email } = await request.json()
   if (!email) return NextResponse.json({ error: 'Email required' }, { status: 400 })
 
+  const key = email.toLowerCase()
   const code = String(Math.floor(100000 + Math.random() * 900000))
-  codes.set(email.toLowerCase(), { code, expiry: Date.now() + 5 * 60 * 1000 })
+
+  const { error: dbErr } = await supabaseAdmin
+    .from('login_codes')
+    .upsert({ email: key, code, expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString() })
+  if (dbErr) return NextResponse.json({ error: dbErr.message }, { status: 500 })
 
   console.log(`\n[Caissa LMS] Verification code for ${email}: ${code}\n`)
 
