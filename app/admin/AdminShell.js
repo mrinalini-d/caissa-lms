@@ -24,13 +24,13 @@ export default function AdminShell({ user, title, subtitle, children }) {
         borderRight: '1px solid #f0f0f3',
         display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
       }}>
-        <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid #f3f4f6' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Image src="/cc_logo.png" alt="Caissa" width={36} height={36} />
-            <div style={{ color: '#7c3aed', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              Admin Panel
-            </div>
-          </div>
+        <div style={{ padding: '20px', borderBottom: '1px solid #f3f4f6' }}>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+          >
+            <Image src="/cc_logo.png" alt="Caissa" width={48} height={48} />
+          </button>
         </div>
 
         <nav style={{ flex: 1, padding: '16px 12px 0', overflowY: 'auto' }}>
