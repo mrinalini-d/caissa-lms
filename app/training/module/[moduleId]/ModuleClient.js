@@ -58,7 +58,7 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onClick={togglePlay}
-          style={{ width: '100%', display: 'block' }}
+          style={{ width: '100%', display: 'block', aspectRatio: '16/9', objectFit: 'contain' }}
         />
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -180,21 +180,104 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
   )
 }
 
+const STATUS_STYLE = {
+  completed: { icon: '✓', bg: '#22c55e', color: 'white' },
+  current: { icon: null, bg: '#7c3aed', color: 'white' },
+  open: { icon: null, bg: '#e5e7eb', color: '#6b7280' },
+  locked: { icon: '🔒', bg: '#f3f4f6', color: '#9ca3af' },
+}
+
+function CourseContentSidebar({ curriculum, activeModuleId, router }) {
+  const [collapsed, setCollapsed] = useState({})
+
+  if (!curriculum) {
+    return <div style={{ color: '#9ca3af', fontSize: '0.82rem', padding: 16 }}>Loading course content…</div>
+  }
+
+  return (
+    <div style={{ background: 'white', borderRadius: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+      <div style={{ padding: '16px 18px', borderBottom: '1px solid #f3f4f6' }}>
+        <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#111827' }}>Course content</h3>
+        <p style={{ margin: '2px 0 0', fontSize: '0.74rem', color: '#9ca3af' }}>
+          {curriculum.completedModules} / {curriculum.totalModules} completed
+        </p>
+      </div>
+
+      {curriculum.chapters.map(chapter => {
+        const isCollapsed = collapsed[chapter.id]
+        return (
+          <div key={chapter.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+            <button
+              onClick={() => setCollapsed(c => ({ ...c, [chapter.id]: !c[chapter.id] }))}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '12px 18px', background: '#fafafa', border: 'none', cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: '0.83rem', fontWeight: 700, color: '#111827' }}>{chapter.title}</span>
+              <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>{isCollapsed ? '▸' : '▾'}</span>
+            </button>
+
+            {!isCollapsed && chapter.modules.map((m, i) => {
+              const isActive = m.id === activeModuleId
+              const status = m.quizPassed ? 'completed' : isActive ? 'current' : m.unlocked ? 'open' : 'locked'
+              const s = STATUS_STYLE[status]
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => m.unlocked && !isActive && router.push(`/training/module/${m.id}`)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 18px',
+                    background: isActive ? '#f3eeff' : 'white',
+                    cursor: m.unlocked && !isActive ? 'pointer' : m.unlocked ? 'default' : 'not-allowed',
+                    opacity: m.unlocked ? 1 : 0.55,
+                  }}
+                >
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                    background: s.bg, color: s.color, fontSize: '0.7rem', fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {s.icon || i + 1}
+                  </span>
+                  <span style={{ fontSize: '0.8rem', color: isActive ? '#7c3aed' : '#374151', fontWeight: isActive ? 700 : 500 }}>
+                    {m.title}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const card = { background: 'white', borderRadius: 16, padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }
 
 export default function ModuleClient({ moduleId, user }) {
   const [module_, setModule] = useState(null)
+  const [curriculum, setCurriculum] = useState(null)
   const [videoDone, setVideoDone] = useState(false)
   const [quizStarted, setQuizStarted] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
+    setModule(null)
+    setVideoDone(false)
+    setQuizStarted(false)
     fetch(`/api/lms/module/${moduleId}`)
       .then(res => res.json())
       .then(json => {
         setModule(json)
         setVideoDone(json.videoWatched)
       })
+  }, [moduleId])
+
+  useEffect(() => {
+    fetch('/api/lms/curriculum')
+      .then(res => res.json())
+      .then(json => !json.error && setCurriculum(json))
   }, [moduleId])
 
   async function markVideoComplete() {
@@ -211,14 +294,14 @@ export default function ModuleClient({ moduleId, user }) {
       {!module_ ? (
         <div style={{ color: '#9ca3af' }}>Loading…</div>
       ) : (
-        <div style={{ maxWidth: 1100 }}>
+        <div style={{ maxWidth: 1300 }}>
           <button onClick={() => router.push('/training')} style={{ background: 'none', border: 'none', color: '#7c3aed', fontWeight: 600, cursor: 'pointer', marginBottom: 16, fontSize: '0.85rem' }}>
             ← Back to Training
           </button>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
 
-            {/* Left: video + description */}
+            {/* Left: video + description + quiz */}
             <div style={card}>
               <VideoGate
                 videoUrl={module_.videoUrl}
@@ -232,21 +315,11 @@ export default function ModuleClient({ moduleId, user }) {
                   <p style={{ fontSize: '0.85rem', color: '#6b7280', lineHeight: 1.6, margin: 0 }}>{module_.description}</p>
                 </div>
               )}
-            </div>
-
-            {/* Right: quiz panel */}
-            <div style={card}>
-              {!videoDone && (
-                <div style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center', padding: '40px 12px' }}>
-                  Watch the full video to unlock the quiz.
-                </div>
-              )}
 
               {videoDone && !quizStarted && (
-                <div style={{ textAlign: 'center', padding: '32px 12px' }}>
-                  <div style={{ fontSize: '2rem', marginBottom: 12 }}>✅</div>
-                  <p style={{ fontSize: '0.88rem', color: '#374151', marginBottom: 20 }}>
-                    Video complete. Ready to test what you learned?
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #f3f4f6', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.88rem', color: '#374151', marginBottom: 16 }}>
+                    ✅ Video complete. Ready to test what you learned?
                   </p>
                   <button
                     onClick={() => setQuizStarted(true)}
@@ -261,13 +334,18 @@ export default function ModuleClient({ moduleId, user }) {
               )}
 
               {quizStarted && (
-                <Quiz
-                  moduleId={moduleId}
-                  passScorePct={module_.passScorePct}
-                  onPassed={() => router.push('/training')}
-                />
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #f3f4f6' }}>
+                  <Quiz
+                    moduleId={moduleId}
+                    passScorePct={module_.passScorePct}
+                    onPassed={() => router.push('/training')}
+                  />
+                </div>
               )}
             </div>
+
+            {/* Right: course content nav */}
+            <CourseContentSidebar curriculum={curriculum} activeModuleId={moduleId} router={router} />
 
           </div>
         </div>
