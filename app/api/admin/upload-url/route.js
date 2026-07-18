@@ -5,9 +5,14 @@ import { getAdminEmail } from '@/lib/session'
 const BUCKET = 'videos'
 
 async function ensureBucket() {
-  const { data: buckets } = await supabaseAdmin.storage.listBuckets()
+  const { data: buckets, error: listErr } = await supabaseAdmin.storage.listBuckets()
+  if (listErr) throw new Error(`Could not list storage buckets: ${listErr.message}`)
+
   if (!buckets?.some(b => b.name === BUCKET)) {
-    await supabaseAdmin.storage.createBucket(BUCKET, { public: true, fileSizeLimit: '500MB' })
+    // No fileSizeLimit — Supabase rejects bucket creation if the limit exceeds
+    // the project's plan cap, so we fall back to the project-wide default.
+    const { error: createErr } = await supabaseAdmin.storage.createBucket(BUCKET, { public: true })
+    if (createErr) throw new Error(`Could not create "${BUCKET}" bucket: ${createErr.message}`)
   }
 }
 
@@ -17,7 +22,11 @@ export async function POST(request) {
   const { fileName } = await request.json()
   if (!fileName) return NextResponse.json({ error: 'fileName required' }, { status: 400 })
 
-  await ensureBucket()
+  try {
+    await ensureBucket()
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
 
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
   const path = `${Date.now()}-${safeName}`
