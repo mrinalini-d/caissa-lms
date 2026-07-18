@@ -5,8 +5,10 @@ import AppShell from '../../../components/AppShell'
 
 function VideoGate({ videoUrl, alreadyWatched, onComplete }) {
   const videoRef = useRef(null)
+  const wrapperRef = useRef(null)
   const maxWatchedRef = useRef(0)
   const [done, setDone] = useState(alreadyWatched)
+  const [playing, setPlaying] = useState(false)
 
   function handleTimeUpdate(e) {
     const t = e.target.currentTime
@@ -22,22 +24,55 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete }) {
 
   function handleEnded() {
     setDone(true)
+    setPlaying(false)
     onComplete()
+  }
+
+  function togglePlay() {
+    if (videoRef.current.paused) videoRef.current.play()
+    else videoRef.current.pause()
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen()
+    else wrapperRef.current.requestFullscreen()
   }
 
   return (
     <div>
-      <video
-        ref={videoRef}
-        src={videoUrl}
-        controls
-        controlsList="nodownload noplaybackrate"
-        disablePictureInPicture
-        onTimeUpdate={handleTimeUpdate}
-        onSeeking={handleSeeking}
-        onEnded={handleEnded}
-        style={{ width: '100%', borderRadius: 12, background: '#000' }}
-      />
+      <div ref={wrapperRef} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          controlsList="nodownload noplaybackrate nofullscreen"
+          disablePictureInPicture
+          onTimeUpdate={handleTimeUpdate}
+          onSeeking={handleSeeking}
+          onEnded={handleEnded}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onClick={togglePlay}
+          style={{ width: '100%', display: 'block' }}
+        />
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 14px', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))',
+        }}>
+          <button onClick={togglePlay} style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+            width: 36, height: 36, color: 'white', fontSize: '1rem', cursor: 'pointer',
+          }}>
+            {playing ? '⏸' : '▶'}
+          </button>
+          <button onClick={toggleFullscreen} style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+            width: 36, height: 36, color: 'white', fontSize: '1rem', cursor: 'pointer',
+          }}>
+            ⛶
+          </button>
+        </div>
+      </div>
       {!done && (
         <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: 8 }}>
           You must watch the entire video before the quiz unlocks. Skipping ahead is disabled.
