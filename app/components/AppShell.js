@@ -31,13 +31,13 @@ export default function AppShell({ user, title, subtitle, children }) {
         display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
       }}>
         {/* Brand */}
-        <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid #f3f4f6' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Image src="/cc_logo.png" alt="Caissa" width={36} height={36} />
-            <div style={{ color: '#7c3aed', fontSize: '0.65rem', fontWeight: '700', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-              Caissa Training
-            </div>
-          </div>
+        <div style={{ padding: '20px', borderBottom: '1px solid #f3f4f6' }}>
+          <button
+            onClick={() => router.push('/dashboard')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+          >
+            <Image src="/cc_logo.png" alt="Caissa" width={48} height={48} />
+          </button>
         </div>
 
         {/* Main nav */}
