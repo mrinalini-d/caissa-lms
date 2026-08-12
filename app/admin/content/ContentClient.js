@@ -21,11 +21,12 @@ export default function ContentClient({ user }) {
 
   const [newChapter, setNewChapter] = useState({ title: '', description: '' })
   const [newModule, setNewModule] = useState({ title: '', description: '', passScorePct: 70 })
-  const [editingModuleId, setEditingModuleId] = useState(null)
   const [uploadState, setUploadState] = useState(null) // { progress, fileName } | null
   const [pendingVideoUrl, setPendingVideoUrl] = useState('')
   const [videoLibrary, setVideoLibrary] = useState(null)
   const [videoSource, setVideoSource] = useState('upload') // 'upload' | 'existing' | 'link'
+
+  const [editModule, setEditModule] = useState(null) // { id, title, description, passScorePct, videoUrl, videoSource, uploadState } | null
 
   const [newQuestion, setNewQuestion] = useState({ questionText: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
   const [showQuizForm, setShowQuizForm] = useState(false)
@@ -88,52 +89,66 @@ export default function ContentClient({ user }) {
     setUploadState({ progress: 100, fileName: file.name })
   }
 
-  async function saveModule() {
+  async function createModule() {
     if (!newModule.title || !pendingVideoUrl) { alert('Title and video required'); return }
-
-    if (editingModuleId) {
-      await fetch(`/api/admin/modules/${editingModuleId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newModule.title, description: newModule.description,
-          videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
-          orderIndex: modules.find(m => m.id === editingModuleId)?.orderIndex ?? 0,
-        }),
-      })
-    } else {
-      await fetch('/api/admin/modules', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chapterId: selectedChapter.id, title: newModule.title, description: newModule.description,
-          videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
-          orderIndex: (modules?.length || 0) + 1,
-        }),
-      })
-    }
-    cancelEditModule()
+    await fetch('/api/admin/modules', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chapterId: selectedChapter.id, title: newModule.title, description: newModule.description,
+        videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
+        orderIndex: (modules?.length || 0) + 1,
+      }),
+    })
+    setNewModule({ title: '', description: '', passScorePct: 70 })
+    setPendingVideoUrl('')
+    setUploadState(null)
     loadModules(selectedChapter.id)
   }
 
   function startEditModule(m) {
-    setEditingModuleId(m.id)
-    setNewModule({ title: m.title, description: m.description || '', passScorePct: m.passScorePct })
-    setPendingVideoUrl(m.videoUrl)
-    setVideoSource('link')
+    setEditModule({
+      id: m.id, orderIndex: m.orderIndex, title: m.title, description: m.description || '',
+      passScorePct: m.passScorePct, videoUrl: m.videoUrl, videoSource: 'link', uploadState: null,
+    })
   }
 
-  function cancelEditModule() {
-    setEditingModuleId(null)
-    setNewModule({ title: '', description: '', passScorePct: 70 })
-    setPendingVideoUrl('')
-    setUploadState(null)
-    setVideoSource('upload')
+  async function saveEditModule() {
+    if (!editModule.title || !editModule.videoUrl) { alert('Title and video required'); return }
+    await fetch(`/api/admin/modules/${editModule.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: editModule.title, description: editModule.description,
+        videoUrl: editModule.videoUrl, passScorePct: Number(editModule.passScorePct) || 70,
+        orderIndex: editModule.orderIndex ?? 0,
+      }),
+    })
+    setEditModule(null)
+    loadModules(selectedChapter.id)
+  }
+
+  async function handleEditVideoSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setEditModule(m => ({ ...m, uploadState: { progress: 0, fileName: file.name } }))
+
+    const res = await fetch('/api/admin/upload-url', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileName: file.name }),
+    })
+    const { path, token, publicUrl, error } = await res.json()
+    if (error) { alert(error); setEditModule(m => ({ ...m, uploadState: null })); return }
+
+    const { error: upErr } = await supabaseBrowser.storage.from('videos').uploadToSignedUrl(path, token, file)
+    if (upErr) { alert(upErr.message); setEditModule(m => ({ ...m, uploadState: null })); return }
+
+    setEditModule(m => ({ ...m, videoUrl: publicUrl, uploadState: { progress: 100, fileName: file.name } }))
   }
 
   async function deleteModule(id) {
     if (!confirm('Delete this module and its questions?')) return
     await fetch(`/api/admin/modules/${id}`, { method: 'DELETE' })
     setSelectedModule(null)
-    if (editingModuleId === id) cancelEditModule()
+    if (editModule?.id === id) setEditModule(null)
     loadModules(selectedChapter.id)
   }
 
@@ -222,14 +237,6 @@ export default function ContentClient({ user }) {
                 </div>
               ))}
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
-                    {editingModuleId ? 'Edit Module' : 'New Module'}
-                  </span>
-                  {editingModuleId && (
-                    <button onClick={cancelEditModule} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '0.75rem', cursor: 'pointer' }}>Cancel</button>
-                  )}
-                </div>
                 <input style={input} placeholder="Module title" value={newModule.title} onChange={e => setNewModule({ ...newModule, title: e.target.value })} />
                 <input style={input} placeholder="Description" value={newModule.description} onChange={e => setNewModule({ ...newModule, description: e.target.value })} />
                 <input style={input} type="number" placeholder="Pass score %" value={newModule.passScorePct} onChange={e => setNewModule({ ...newModule, passScorePct: e.target.value })} />
@@ -289,7 +296,7 @@ export default function ContentClient({ user }) {
                     value={pendingVideoUrl} onChange={e => setPendingVideoUrl(e.target.value)}
                   />
                 )}
-                <button style={btnPrimary} onClick={saveModule}>{editingModuleId ? 'Save Changes' : '+ Add Module'}</button>
+                <button style={btnPrimary} onClick={createModule}>+ Add Module</button>
               </div>
             </>
           )}
@@ -351,6 +358,80 @@ export default function ContentClient({ user }) {
           )}
         </div>
       </div>
+
+      {editModule && (
+        <div
+          onClick={() => setEditModule(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(15,14,26,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ ...card, width: 480, maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Edit Module</h3>
+              <button onClick={() => setEditModule(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <input style={input} placeholder="Module title" value={editModule.title} onChange={e => setEditModule({ ...editModule, title: e.target.value })} />
+            <input style={input} placeholder="Description" value={editModule.description} onChange={e => setEditModule({ ...editModule, description: e.target.value })} />
+            <input style={input} type="number" placeholder="Pass score %" value={editModule.passScorePct} onChange={e => setEditModule({ ...editModule, passScorePct: e.target.value })} />
+
+            <label style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280', marginBottom: 6 }}>Video</label>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {['upload', 'existing', 'link'].map(src => (
+                <button
+                  key={src}
+                  onClick={() => setEditModule({ ...editModule, videoSource: src, uploadState: null })}
+                  style={{ ...btnGhost, flex: 1, background: editModule.videoSource === src ? '#ede9fe' : '#f3f4f6', color: editModule.videoSource === src ? '#7c3aed' : '#374151' }}
+                >
+                  {src === 'upload' ? 'Upload new' : src === 'existing' ? 'Use existing' : 'Paste link'}
+                </button>
+              ))}
+            </div>
+
+            {editModule.videoSource === 'upload' && (
+              <>
+                <input style={input} type="file" accept="video/*" onChange={handleEditVideoSelect} />
+                {editModule.uploadState && (
+                  <p style={{ fontSize: '0.75rem', color: editModule.uploadState.progress === 100 ? '#15803d' : '#9ca3af', marginTop: -4, marginBottom: 10 }}>
+                    {editModule.uploadState.progress === 100 ? `✓ Uploaded ${editModule.uploadState.fileName}` : `Uploading ${editModule.uploadState.fileName}…`}
+                  </p>
+                )}
+              </>
+            )}
+
+            {editModule.videoSource === 'existing' && (
+              <select
+                style={input}
+                value={editModule.videoUrl}
+                onChange={e => setEditModule({ ...editModule, videoUrl: e.target.value })}
+              >
+                <option value="">
+                  {videoLibrary === null ? 'Loading videos…' : videoLibrary.length === 0 ? 'No videos in storage yet' : 'Select an uploaded video…'}
+                </option>
+                {videoLibrary?.map(v => (
+                  <option key={v.name} value={v.publicUrl}>
+                    {v.name} ({(v.sizeBytes / 1024 / 1024).toFixed(1)} MB)
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {editModule.videoSource === 'link' && (
+              <input
+                style={input} placeholder="https://... direct video URL"
+                value={editModule.videoUrl} onChange={e => setEditModule({ ...editModule, videoUrl: e.target.value })}
+              />
+            )}
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button style={{ ...btnGhost, flex: 1 }} onClick={() => setEditModule(null)}>Cancel</button>
+              <button style={{ ...btnPrimary, flex: 1 }} onClick={saveEditModule}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminShell>
   )
 }
