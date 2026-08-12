@@ -21,12 +21,14 @@ export default function ContentClient({ user }) {
 
   const [newChapter, setNewChapter] = useState({ title: '', description: '' })
   const [newModule, setNewModule] = useState({ title: '', description: '', passScorePct: 70 })
+  const [editingModuleId, setEditingModuleId] = useState(null)
   const [uploadState, setUploadState] = useState(null) // { progress, fileName } | null
   const [pendingVideoUrl, setPendingVideoUrl] = useState('')
   const [videoLibrary, setVideoLibrary] = useState(null)
   const [videoSource, setVideoSource] = useState('upload') // 'upload' | 'existing' | 'link'
 
   const [newQuestion, setNewQuestion] = useState({ questionText: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
+  const [showQuizForm, setShowQuizForm] = useState(false)
 
   function loadChapters() {
     fetch('/api/admin/chapters').then(r => r.json()).then(j => setChapters(j.chapters || []))
@@ -47,6 +49,7 @@ export default function ContentClient({ user }) {
   }, [selectedChapter])
   useEffect(() => {
     if (selectedModule) loadQuestions(selectedModule.id)
+    setShowQuizForm(false)
   }, [selectedModule])
 
   async function createChapter() {
@@ -85,26 +88,52 @@ export default function ContentClient({ user }) {
     setUploadState({ progress: 100, fileName: file.name })
   }
 
-  async function createModule() {
-    if (!newModule.title || !pendingVideoUrl) { alert('Title and video upload required'); return }
-    await fetch('/api/admin/modules', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chapterId: selectedChapter.id, title: newModule.title, description: newModule.description,
-        videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
-        orderIndex: (modules?.length || 0) + 1,
-      }),
-    })
+  async function saveModule() {
+    if (!newModule.title || !pendingVideoUrl) { alert('Title and video required'); return }
+
+    if (editingModuleId) {
+      await fetch(`/api/admin/modules/${editingModuleId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newModule.title, description: newModule.description,
+          videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
+          orderIndex: modules.find(m => m.id === editingModuleId)?.orderIndex ?? 0,
+        }),
+      })
+    } else {
+      await fetch('/api/admin/modules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapterId: selectedChapter.id, title: newModule.title, description: newModule.description,
+          videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
+          orderIndex: (modules?.length || 0) + 1,
+        }),
+      })
+    }
+    cancelEditModule()
+    loadModules(selectedChapter.id)
+  }
+
+  function startEditModule(m) {
+    setEditingModuleId(m.id)
+    setNewModule({ title: m.title, description: m.description || '', passScorePct: m.passScorePct })
+    setPendingVideoUrl(m.videoUrl)
+    setVideoSource('link')
+  }
+
+  function cancelEditModule() {
+    setEditingModuleId(null)
     setNewModule({ title: '', description: '', passScorePct: 70 })
     setPendingVideoUrl('')
     setUploadState(null)
-    loadModules(selectedChapter.id)
+    setVideoSource('upload')
   }
 
   async function deleteModule(id) {
     if (!confirm('Delete this module and its questions?')) return
     await fetch(`/api/admin/modules/${id}`, { method: 'DELETE' })
     setSelectedModule(null)
+    if (editingModuleId === id) cancelEditModule()
     loadModules(selectedChapter.id)
   }
 
@@ -185,11 +214,22 @@ export default function ContentClient({ user }) {
                         {m.videoUrl}
                       </a>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteModule(m.id) }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      <button onClick={(e) => { e.stopPropagation(); startEditModule(m) }} style={{ background: 'none', border: 'none', color: '#7c3aed', cursor: 'pointer' }}>✎</button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteModule(m.id) }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                    </div>
                   </div>
                 </div>
               ))}
               <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#111827' }}>
+                    {editingModuleId ? 'Edit Module' : 'New Module'}
+                  </span>
+                  {editingModuleId && (
+                    <button onClick={cancelEditModule} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '0.75rem', cursor: 'pointer' }}>Cancel</button>
+                  )}
+                </div>
                 <input style={input} placeholder="Module title" value={newModule.title} onChange={e => setNewModule({ ...newModule, title: e.target.value })} />
                 <input style={input} placeholder="Description" value={newModule.description} onChange={e => setNewModule({ ...newModule, description: e.target.value })} />
                 <input style={input} type="number" placeholder="Pass score %" value={newModule.passScorePct} onChange={e => setNewModule({ ...newModule, passScorePct: e.target.value })} />
@@ -249,7 +289,7 @@ export default function ContentClient({ user }) {
                     value={pendingVideoUrl} onChange={e => setPendingVideoUrl(e.target.value)}
                   />
                 )}
-                <button style={btnPrimary} onClick={createModule}>+ Add Module</button>
+                <button style={btnPrimary} onClick={saveModule}>{editingModuleId ? 'Save Changes' : '+ Add Module'}</button>
               </div>
             </>
           )}
@@ -277,25 +317,36 @@ export default function ContentClient({ user }) {
                 </div>
               ))}
 
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
-                <input style={input} placeholder="Question text" value={newQuestion.questionText} onChange={e => setNewQuestion({ ...newQuestion, questionText: e.target.value })} />
-                {newQuestion.options.map((o, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <input
-                      type="radio" name="correct" checked={o.isCorrect}
-                      onChange={() => updateOption(i, 'isCorrect', true)}
-                    />
-                    <input
-                      style={{ ...input, marginBottom: 0, flex: 1 }} placeholder={`Option ${i + 1}`}
-                      value={o.optionText} onChange={e => updateOption(i, 'optionText', e.target.value)}
-                    />
-                  </div>
-                ))}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                  <button style={btnGhost} onClick={() => setNewQuestion(q => ({ ...q, options: [...q.options, { optionText: '', isCorrect: false }] }))}>+ Option</button>
+              {questions?.length === 0 && !showQuizForm && (
+                <div style={{ textAlign: 'center', padding: '24px 8px' }}>
+                  <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginBottom: 12 }}>
+                    No quiz yet — trainees unlock the next module just by watching the video.
+                  </p>
+                  <button style={btnPrimary} onClick={() => setShowQuizForm(true)}>+ Add Quiz</button>
                 </div>
-                <button style={btnPrimary} onClick={createQuestion}>+ Add Question</button>
-              </div>
+              )}
+
+              {(questions?.length > 0 || showQuizForm) && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
+                  <input style={input} placeholder="Question text" value={newQuestion.questionText} onChange={e => setNewQuestion({ ...newQuestion, questionText: e.target.value })} />
+                  {newQuestion.options.map((o, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <input
+                        type="radio" name="correct" checked={o.isCorrect}
+                        onChange={() => updateOption(i, 'isCorrect', true)}
+                      />
+                      <input
+                        style={{ ...input, marginBottom: 0, flex: 1 }} placeholder={`Option ${i + 1}`}
+                        value={o.optionText} onChange={e => updateOption(i, 'optionText', e.target.value)}
+                      />
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    <button style={btnGhost} onClick={() => setNewQuestion(q => ({ ...q, options: [...q.options, { optionText: '', isCorrect: false }] }))}>+ Option</button>
+                  </div>
+                  <button style={btnPrimary} onClick={createQuestion}>+ Add Question</button>
+                </div>
+              )}
             </>
           )}
         </div>

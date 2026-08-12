@@ -287,6 +287,7 @@ export default function ModuleClient({ moduleId, user }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ moduleId }),
     })
+    fetch('/api/lms/curriculum').then(res => res.json()).then(json => !json.error && setCurriculum(json))
   }
 
   return (
@@ -316,7 +317,7 @@ export default function ModuleClient({ moduleId, user }) {
                 </div>
               )}
 
-              {videoDone && !quizStarted && (
+              {videoDone && !quizStarted && module_.hasQuiz && (
                 <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #f3f4f6', textAlign: 'center' }}>
                   <p style={{ fontSize: '0.88rem', color: '#374151', marginBottom: 16 }}>
                     ✅ Video complete. Ready to test what you learned?
@@ -329,6 +330,23 @@ export default function ModuleClient({ moduleId, user }) {
                     }}
                   >
                     Start Quiz
+                  </button>
+                </div>
+              )}
+
+              {videoDone && !module_.hasQuiz && (
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #f3f4f6', textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.88rem', color: '#374151', marginBottom: 16 }}>
+                    ✅ Module complete — no quiz required. Next module unlocked.
+                  </p>
+                  <button
+                    onClick={() => router.push('/training')}
+                    style={{
+                      padding: '11px 28px', background: '#7c3aed', color: 'white', border: 'none',
+                      borderRadius: 8, fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+                    }}
+                  >
+                    Back to Training
                   </button>
                 </div>
               )}

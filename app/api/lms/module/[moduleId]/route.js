@@ -10,7 +10,7 @@ export async function GET(request, { params }) {
 
   const { data: module_, error } = await supabaseAdmin
     .from('modules')
-    .select('id, title, description, video_url, pass_score_pct')
+    .select('id, title, description, video_url, pass_score_pct, questions(id)')
     .eq('id', moduleId)
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 404 })
@@ -28,6 +28,7 @@ export async function GET(request, { params }) {
     description: module_.description,
     videoUrl: module_.video_url,
     passScorePct: module_.pass_score_pct,
+    hasQuiz: (module_.questions?.length || 0) > 0,
     videoWatched: progress?.video_watched || false,
     quizPassed: progress?.quiz_passed || false,
     bestScorePct: progress?.best_score_pct ?? null,
