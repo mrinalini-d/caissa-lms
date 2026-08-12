@@ -1,0 +1,21 @@
+// Shared design tokens — Fraunces/Public Sans/IBM Plex Mono, warm paper + slate palette.
+export const theme = {
+  ink: '#14181F',
+  inkSoft: '#4B5160',
+  slate: '#1C2431',
+  slateSoft: '#2A3444',
+  paper: '#F7F5F0',
+  paperRaised: '#FFFFFF',
+  line: '#E5E1D8',
+  amber: '#B8863C',
+  amberDeep: '#8F6526',
+  amberTint: '#F3E6CE',
+  green: '#3E7D5C',
+  greenTint: '#E1EEE5',
+  locked: '#A7A296',
+  radius: 16,
+  shadow: '0 1px 2px rgba(20,24,31,0.04), 0 10px 28px -14px rgba(20,24,31,0.14)',
+  fontHeading: 'var(--font-fraunces), serif',
+  fontBody: 'var(--font-public-sans), sans-serif',
+  fontMono: 'var(--font-plex-mono), monospace',
+}
