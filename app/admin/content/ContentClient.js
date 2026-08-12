@@ -23,6 +23,8 @@ export default function ContentClient({ user }) {
   const [newModule, setNewModule] = useState({ title: '', description: '', passScorePct: 70 })
   const [uploadState, setUploadState] = useState(null) // { progress, fileName } | null
   const [pendingVideoUrl, setPendingVideoUrl] = useState('')
+  const [videoLibrary, setVideoLibrary] = useState(null)
+  const [videoSource, setVideoSource] = useState('upload') // 'upload' | 'existing' | 'link'
 
   const [newQuestion, setNewQuestion] = useState({ questionText: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
 
@@ -37,6 +39,9 @@ export default function ContentClient({ user }) {
   }
 
   useEffect(loadChapters, [])
+  useEffect(() => {
+    fetch('/api/admin/videos').then(r => r.json()).then(j => setVideoLibrary(j.videos || []))
+  }, [])
   useEffect(() => {
     if (selectedChapter) { loadModules(selectedChapter.id); setSelectedModule(null); setQuestions(null) }
   }, [selectedChapter])
@@ -168,12 +173,19 @@ export default function ContentClient({ user }) {
             <>
               {modules?.map(m => (
                 <div key={m.id} style={listRow(selectedModule?.id === m.id)} onClick={() => setSelectedModule(m)}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <video src={m.videoUrl} muted style={{ width: 72, height: 44, borderRadius: 6, background: '#000', objectFit: 'cover', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{m.title}</div>
                       <div style={{ fontSize: '0.72rem', color: '#9ca3af' }}>{m.questionCount} question{m.questionCount === 1 ? '' : 's'} · pass {m.passScorePct}%</div>
+                      <a
+                        href={m.videoUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
+                        style={{ fontSize: '0.7rem', color: '#7c3aed', wordBreak: 'break-all', display: 'block', marginTop: 2 }}
+                      >
+                        {m.videoUrl}
+                      </a>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); deleteModule(m.id) }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteModule(m.id) }} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}>✕</button>
                   </div>
                 </div>
               ))}
@@ -181,12 +193,61 @@ export default function ContentClient({ user }) {
                 <input style={input} placeholder="Module title" value={newModule.title} onChange={e => setNewModule({ ...newModule, title: e.target.value })} />
                 <input style={input} placeholder="Description" value={newModule.description} onChange={e => setNewModule({ ...newModule, description: e.target.value })} />
                 <input style={input} type="number" placeholder="Pass score %" value={newModule.passScorePct} onChange={e => setNewModule({ ...newModule, passScorePct: e.target.value })} />
-                <label style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280', marginBottom: 6 }}>Video file</label>
-                <input style={input} type="file" accept="video/*" onChange={handleVideoSelect} />
-                {uploadState && (
-                  <p style={{ fontSize: '0.75rem', color: uploadState.progress === 100 ? '#15803d' : '#9ca3af', marginTop: -4, marginBottom: 10 }}>
-                    {uploadState.progress === 100 ? `✓ Uploaded ${uploadState.fileName}` : `Uploading ${uploadState.fileName}…`}
-                  </p>
+                <label style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280', marginBottom: 6 }}>Video</label>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                  <button
+                    onClick={() => { setVideoSource('upload'); setPendingVideoUrl(''); setUploadState(null) }}
+                    style={{ ...btnGhost, flex: 1, background: videoSource === 'upload' ? '#ede9fe' : '#f3f4f6', color: videoSource === 'upload' ? '#7c3aed' : '#374151' }}
+                  >
+                    Upload new
+                  </button>
+                  <button
+                    onClick={() => { setVideoSource('existing'); setPendingVideoUrl(''); setUploadState(null) }}
+                    style={{ ...btnGhost, flex: 1, background: videoSource === 'existing' ? '#ede9fe' : '#f3f4f6', color: videoSource === 'existing' ? '#7c3aed' : '#374151' }}
+                  >
+                    Use existing
+                  </button>
+                  <button
+                    onClick={() => { setVideoSource('link'); setPendingVideoUrl(''); setUploadState(null) }}
+                    style={{ ...btnGhost, flex: 1, background: videoSource === 'link' ? '#ede9fe' : '#f3f4f6', color: videoSource === 'link' ? '#7c3aed' : '#374151' }}
+                  >
+                    Paste link
+                  </button>
+                </div>
+
+                {videoSource === 'upload' && (
+                  <>
+                    <input style={input} type="file" accept="video/*" onChange={handleVideoSelect} />
+                    {uploadState && (
+                      <p style={{ fontSize: '0.75rem', color: uploadState.progress === 100 ? '#15803d' : '#9ca3af', marginTop: -4, marginBottom: 10 }}>
+                        {uploadState.progress === 100 ? `✓ Uploaded ${uploadState.fileName}` : `Uploading ${uploadState.fileName}…`}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                {videoSource === 'existing' && (
+                  <select
+                    style={input}
+                    value={pendingVideoUrl}
+                    onChange={e => setPendingVideoUrl(e.target.value)}
+                  >
+                    <option value="">
+                      {videoLibrary === null ? 'Loading videos…' : videoLibrary.length === 0 ? 'No videos in storage yet' : 'Select an uploaded video…'}
+                    </option>
+                    {videoLibrary?.map(v => (
+                      <option key={v.name} value={v.publicUrl}>
+                        {v.name} ({(v.sizeBytes / 1024 / 1024).toFixed(1)} MB)
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {videoSource === 'link' && (
+                  <input
+                    style={input} placeholder="https://... direct video URL"
+                    value={pendingVideoUrl} onChange={e => setPendingVideoUrl(e.target.value)}
+                  />
                 )}
                 <button style={btnPrimary} onClick={createModule}>+ Add Module</button>
               </div>
