@@ -41,14 +41,15 @@ export default function AppShell({ user, title, subtitle, children }) {
 
       {/* ── Sidebar ── */}
       <aside style={{
-        width: '248px', minWidth: '248px', background: t.slate, color: '#D8DCE6',
+        width: '248px', minWidth: '248px', background: t.paperRaised, color: t.inkSoft,
+        borderRight: `1px solid ${t.line}`,
         padding: '28px 18px', display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
       }}>
         <button
           onClick={() => router.push('/dashboard')}
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', marginBottom: 28 }}
         >
-          <img src="/cc_logo.png" alt="Caissa" width={48} height={48} style={{ borderRadius: 10 }} />
+          <img src="/cc_logo.png" alt="Caissa" width={64} height={64} style={{ borderRadius: 12 }} />
         </button>
 
         <nav style={{ flex: 1, overflowY: 'auto' }}>
@@ -61,8 +62,8 @@ export default function AppShell({ user, title, subtitle, children }) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 9,
                   marginBottom: 2, fontSize: 14, fontWeight: 500, cursor: 'pointer', position: 'relative',
-                  background: isActive ? t.slateSoft : 'transparent',
-                  color: isActive ? '#fff' : '#AEB4C2',
+                  background: isActive ? t.amberTint : 'transparent',
+                  color: isActive ? t.amberDeep : t.inkSoft,
                   transition: 'background .15s, color .15s',
                 }}
               >
@@ -76,8 +77,8 @@ export default function AppShell({ user, title, subtitle, children }) {
           })}
         </nav>
 
-        <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: '1px solid #2E384A' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px', background: t.slateSoft, borderRadius: 10, fontSize: 12.5, color: '#AEB4C2' }}>
+        <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: `1px solid ${t.line}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '10px 11px', background: t.paper, borderRadius: 10, fontSize: 12.5, color: t.inkSoft }}>
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: t.amber, flexShrink: 0 }} />
             {progress ? `Trainee — ${progress.completedModules} of ${progress.totalModules} modules cleared` : 'Trainee'}
           </div>
