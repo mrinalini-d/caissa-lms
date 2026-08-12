@@ -24,3 +24,15 @@ export async function GET() {
 
   return NextResponse.json({ videos })
 }
+
+export async function DELETE(request) {
+  if (!(await getAdminEmail())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const name = request.nextUrl.searchParams.get('name')
+  if (!name) return NextResponse.json({ error: 'name required' }, { status: 400 })
+
+  const { error } = await supabaseAdmin.storage.from(BUCKET).remove([name])
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true })
+}

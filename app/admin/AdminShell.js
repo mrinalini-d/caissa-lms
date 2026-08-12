@@ -5,6 +5,7 @@ import Image from 'next/image'
 const NAV_ITEMS = [
   { icon: '📦', label: 'Content', href: '/admin/content' },
   { icon: '📈', label: 'Activity', href: '/admin/users' },
+  { icon: '🗂', label: 'Storage', href: '/admin/storage' },
 ]
 
 export default function AdminShell({ user, title, subtitle, children }) {
