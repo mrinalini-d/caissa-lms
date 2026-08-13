@@ -21,7 +21,7 @@ create table if not exists modules (
   video_url text not null,       -- Supabase Storage or Drive link
   duration_seconds int,
   order_index int not null default 0,
-  pass_score_pct int not null default 70,
+  pass_score_pct int not null default 90,
   created_at timestamptz not null default now()
 );
 

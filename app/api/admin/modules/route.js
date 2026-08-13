@@ -36,7 +36,7 @@ export async function POST(request) {
     .from('modules')
     .insert({
       chapter_id: chapterId, title, description, video_url: videoUrl,
-      order_index: orderIndex ?? 0, pass_score_pct: passScorePct ?? 70,
+      order_index: orderIndex ?? 0, pass_score_pct: passScorePct ?? 90,
     })
     .select()
     .single()

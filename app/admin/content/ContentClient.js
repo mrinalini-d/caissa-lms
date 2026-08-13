@@ -20,7 +20,7 @@ export default function ContentClient({ user }) {
   const [questions, setQuestions] = useState(null)
 
   const [newChapter, setNewChapter] = useState({ title: '', description: '' })
-  const [newModule, setNewModule] = useState({ title: '', description: '', passScorePct: 70 })
+  const [newModule, setNewModule] = useState({ title: '', description: '', passScorePct: 90 })
   const [uploadState, setUploadState] = useState(null) // { progress, fileName } | null
   const [pendingVideoUrl, setPendingVideoUrl] = useState('')
   const [videoLibrary, setVideoLibrary] = useState(null)
@@ -96,11 +96,11 @@ export default function ContentClient({ user }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chapterId: selectedChapter.id, title: newModule.title, description: newModule.description,
-        videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 70,
+        videoUrl: pendingVideoUrl, passScorePct: Number(newModule.passScorePct) || 90,
         orderIndex: (modules?.length || 0) + 1,
       }),
     })
-    setNewModule({ title: '', description: '', passScorePct: 70 })
+    setNewModule({ title: '', description: '', passScorePct: 90 })
     setPendingVideoUrl('')
     setUploadState(null)
     loadModules(selectedChapter.id)
@@ -119,7 +119,7 @@ export default function ContentClient({ user }) {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: editModule.title, description: editModule.description,
-        videoUrl: editModule.videoUrl, passScorePct: Number(editModule.passScorePct) || 70,
+        videoUrl: editModule.videoUrl, passScorePct: Number(editModule.passScorePct) || 90,
         orderIndex: editModule.orderIndex ?? 0,
       }),
     })

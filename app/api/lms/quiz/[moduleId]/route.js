@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getUserEmail } from '@/lib/session'
+import { getQuizCooldown } from '@/lib/quizCooldown'
 
 export async function GET(request, { params }) {
   const userEmail = await getUserEmail()
@@ -17,6 +18,14 @@ export async function GET(request, { params }) {
 
   if (!progress?.video_watched) {
     return NextResponse.json({ error: 'Watch the full video before starting the quiz' }, { status: 403 })
+  }
+
+  const cooldown = await getQuizCooldown(userEmail, moduleId)
+  if (cooldown) {
+    return NextResponse.json({
+      error: `You need to wait ${cooldown.minutesRemaining} more minute(s) before retrying this quiz.`,
+      cooldown,
+    }, { status: 429 })
   }
 
   const { data: questions, error } = await supabaseAdmin

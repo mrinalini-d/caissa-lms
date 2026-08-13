@@ -103,13 +103,15 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
   const [answers, setAnswers] = useState({})
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
+  const [cooldown, setCooldown] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     fetch(`/api/lms/quiz/${moduleId}`)
       .then(res => res.json())
       .then(json => {
-        if (json.error) setError(json.error)
+        if (json.cooldown) setCooldown(json.cooldown)
+        else if (json.error) setError(json.error)
         else setQuestions(json.questions)
       })
   }, [moduleId])
@@ -123,6 +125,7 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
     })
     const json = await res.json()
     setSubmitting(false)
+    if (json.cooldown) { setCooldown(json.cooldown); return }
     if (json.error) { setError(json.error); return }
     setResult(json)
     if (json.passed) onPassed()
@@ -133,6 +136,16 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
     if (result && !result.passed) setResult(null)
   }
 
+  if (cooldown) {
+    return (
+      <div style={{ padding: '16px 18px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, color: '#92400e' }}>
+        <div style={{ fontWeight: 700, marginBottom: 4 }}>⏳ Take a short break before retrying</div>
+        <p style={{ margin: 0, fontSize: '0.85rem' }}>
+          You can attempt this quiz again in <strong>{cooldown.minutesRemaining} minute{cooldown.minutesRemaining === 1 ? '' : 's'}</strong>.
+        </p>
+      </div>
+    )
+  }
   if (error) return <p style={{ color: '#dc2626' }}>{error}</p>
   if (!questions) return <p style={{ color: '#9ca3af' }}>Loading quiz…</p>
 
