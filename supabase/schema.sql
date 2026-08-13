@@ -54,6 +54,7 @@ create table if not exists user_progress (
   best_score_pct int,
   attempts int not null default 0,
   completed_at timestamptz,
+  cooldown_cleared_at timestamptz, -- admin override to bypass the retry cooldown
   updated_at timestamptz not null default now(),
   unique (user_email, module_id)
 );

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getUserEmail } from '@/lib/session'
+import { getQuizCooldown } from '@/lib/quizCooldown'
 
 export async function GET() {
   const userEmail = await getUserEmail()
@@ -28,6 +29,13 @@ export async function GET() {
   if (progErr) return NextResponse.json({ error: progErr.message }, { status: 500 })
 
   const progressByModule = Object.fromEntries((progress || []).map(p => [p.module_id, p]))
+
+  // Only check cooldown for modules the trainee has actually attempted and not yet passed.
+  const needsCooldownCheck = (progress || []).filter(p => p.attempts > 0 && !p.quiz_passed)
+  const cooldownEntries = await Promise.all(
+    needsCooldownCheck.map(async p => [p.module_id, await getQuizCooldown(userEmail, p.module_id)])
+  )
+  const cooldownByModule = Object.fromEntries(cooldownEntries.filter(([, c]) => c))
 
   // Flatten modules in chapter order → module order to compute sequential unlock.
   const chapterOrder = Object.fromEntries(chapters.map(c => [c.id, c.order_index]))
@@ -61,6 +69,7 @@ export async function GET() {
           quizPassed: p?.quiz_passed || false,
           bestScorePct: p?.best_score_pct ?? null,
           attempts: p?.attempts || 0,
+          cooldown: cooldownByModule[m.id] || null,
         }
       }),
   }))

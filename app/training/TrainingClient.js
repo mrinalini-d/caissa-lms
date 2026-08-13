@@ -74,15 +74,6 @@ export default function TrainingClient({ user }) {
   return (
     <AppShell user={user} title="Courses" subtitle="Every module you need to activate your coaching account, organized by track">
 
-      {/* Retry policy banner */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, background: t.amberTint, color: t.amberDeep,
-        border: `1px solid ${t.amber}33`, borderRadius: 12, padding: '12px 18px', marginBottom: 22, fontSize: '13.5px', fontWeight: 500,
-      }}>
-        <span style={{ fontSize: 16 }}>ℹ️</span>
-        If you don't pass a quiz, you can retake it after <strong>4 hours</strong>.
-      </div>
-
       {/* Hero / continue */}
       {continueModule && (() => {
         const isNew = !continueModule.module.videoWatched && !(continueModule.module.attempts > 0)
@@ -184,6 +175,10 @@ export default function TrainingClient({ user }) {
                     {locked ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '12.5px', color: t.locked, fontWeight: 600, marginTop: 'auto' }}>
                         🔒 Complete the previous module to unlock
+                      </div>
+                    ) : m.cooldown ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '12.5px', color: t.amberDeep, fontWeight: 600, marginTop: 'auto' }}>
+                        ⏳ You can re-attempt the quiz in {m.cooldown.label}
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 'auto' }}>

@@ -25,6 +25,17 @@ export default function UsersClient({ user }) {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [expanded, setExpanded] = useState(null)
+  const [clearing, setClearing] = useState(null) // `${email}:${moduleId}` | null
+
+  async function allowRetryNow(email, moduleId) {
+    setClearing(`${email}:${moduleId}`)
+    await fetch('/api/admin/clear-cooldown', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userEmail: email, moduleId }),
+    })
+    setClearing(null)
+    load()
+  }
 
   function load() {
     const qs = new URLSearchParams()
@@ -123,19 +134,39 @@ export default function UsersClient({ user }) {
                       <th style={{ padding: '6px 8px', fontWeight: 600 }}>Quiz Passed</th>
                       <th style={{ padding: '6px 8px', fontWeight: 600 }}>Best Score</th>
                       <th style={{ padding: '6px 8px', fontWeight: 600 }}>Attempts</th>
+                      <th style={{ padding: '6px 8px', fontWeight: 600 }}></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {u.modules.map((m, i) => (
-                      <tr key={i} style={{ borderTop: `1px solid ${t.line}` }}>
-                        <td style={{ padding: '8px' }}>{m.chapterTitle}</td>
-                        <td style={{ padding: '8px', fontWeight: 600 }}>{m.moduleTitle}</td>
-                        <td style={{ padding: '8px' }}>{m.videoWatched ? `✓ ${fmt(m.videoWatchedAt)}` : '—'}</td>
-                        <td style={{ padding: '8px' }}>{m.quizPassed ? <span style={{ color: t.green, fontWeight: 700 }}>✓</span> : '—'}</td>
-                        <td style={{ padding: '8px', fontFamily: t.fontMono }}>{m.bestScorePct ?? '—'}%</td>
-                        <td style={{ padding: '8px', fontFamily: t.fontMono }}>{m.attempts}</td>
-                      </tr>
-                    ))}
+                    {u.modules.map((m, i) => {
+                      const canRetry = m.attempts > 0 && !m.quizPassed
+                      const key = `${u.email}:${m.moduleId}`
+                      return (
+                        <tr key={i} style={{ borderTop: `1px solid ${t.line}` }}>
+                          <td style={{ padding: '8px' }}>{m.chapterTitle}</td>
+                          <td style={{ padding: '8px', fontWeight: 600 }}>{m.moduleTitle}</td>
+                          <td style={{ padding: '8px' }}>{m.videoWatched ? `✓ ${fmt(m.videoWatchedAt)}` : '—'}</td>
+                          <td style={{ padding: '8px' }}>{m.quizPassed ? <span style={{ color: t.green, fontWeight: 700 }}>✓</span> : '—'}</td>
+                          <td style={{ padding: '8px', fontFamily: t.fontMono }}>{m.bestScorePct ?? '—'}%</td>
+                          <td style={{ padding: '8px', fontFamily: t.fontMono }}>{m.attempts}</td>
+                          <td style={{ padding: '8px' }}>
+                            {canRetry && (
+                              <button
+                                onClick={() => allowRetryNow(u.email, m.moduleId)}
+                                disabled={clearing === key}
+                                style={{
+                                  padding: '5px 12px', background: t.amberTint, color: t.amberDeep, border: 'none',
+                                  borderRadius: 20, fontWeight: 600, fontSize: '0.7rem', cursor: clearing === key ? 'default' : 'pointer',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {clearing === key ? 'Enabling…' : '⚡ Allow Retry Now'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
 

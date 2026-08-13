@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getUserEmail } from '@/lib/session'
+import { getQuizCooldown } from '@/lib/quizCooldown'
 
 export async function GET(request, { params }) {
   const userEmail = await getUserEmail()
@@ -22,6 +23,10 @@ export async function GET(request, { params }) {
     .eq('module_id', moduleId)
     .maybeSingle()
 
+  const cooldown = (progress?.attempts > 0 && !progress?.quiz_passed)
+    ? await getQuizCooldown(userEmail, moduleId)
+    : null
+
   return NextResponse.json({
     id: module_.id,
     title: module_.title,
@@ -33,5 +38,6 @@ export async function GET(request, { params }) {
     quizPassed: progress?.quiz_passed || false,
     bestScorePct: progress?.best_score_pct ?? null,
     attempts: progress?.attempts || 0,
+    cooldown,
   })
 }

@@ -18,7 +18,7 @@ export async function GET(request) {
 
   let progressQuery = supabaseAdmin
     .from('user_progress')
-    .select('user_email, module_id, video_watched, video_watched_at, quiz_passed, best_score_pct, attempts, completed_at, updated_at')
+    .select('user_email, module_id, video_watched, video_watched_at, quiz_passed, best_score_pct, attempts, completed_at, cooldown_cleared_at, updated_at')
   if (emailFilter) progressQuery = progressQuery.ilike('user_email', `%${emailFilter}%`)
   if (from) progressQuery = progressQuery.gte('updated_at', from)
   if (to) progressQuery = progressQuery.lte('updated_at', `${to}T23:59:59`)
@@ -59,6 +59,7 @@ export async function GET(request) {
     if (p.quiz_passed) u.modulesCompleted++
     const info = moduleInfo[p.module_id] || {}
     u.modules.push({
+      moduleId: p.module_id,
       moduleTitle: info.title,
       chapterTitle: info.chapterTitle,
       videoWatched: p.video_watched,
@@ -67,6 +68,7 @@ export async function GET(request) {
       bestScorePct: p.best_score_pct,
       attempts: p.attempts,
       completedAt: p.completed_at,
+      cooldownClearedAt: p.cooldown_cleared_at,
     })
     if (!u.lastActivityAt || p.updated_at > u.lastActivityAt) u.lastActivityAt = p.updated_at
   }
