@@ -29,7 +29,7 @@ export default function AdminShell({ user, title, subtitle, children }) {
           onClick={() => router.push('/dashboard')}
           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', marginBottom: 28 }}
         >
-          <img src="/cc_logo.png" alt="Caissa" width={84} height={84} style={{ borderRadius: 12 }} />
+          <img src="/cc_logo.png" alt="Caissa" width={104} height={104} style={{ borderRadius: 12 }} />
         </button>
 
         <nav style={{ flex: 1, overflowY: 'auto' }}>
