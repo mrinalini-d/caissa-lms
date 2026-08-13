@@ -35,6 +35,13 @@ export async function GET(request) {
   const { data: attempts, error: attErr } = await attemptsQuery
   if (attErr) return NextResponse.json({ error: attErr.message }, { status: 500 })
 
+  // attempts is ordered created_at desc, so the first hit per user+module is the latest.
+  const lastAttemptAt = {}
+  for (const a of attempts) {
+    const key = `${a.user_email}:${a.module_id}`
+    if (!(key in lastAttemptAt)) lastAttemptAt[key] = a.created_at
+  }
+
   const byUser = {}
   function getUser(email) {
     if (!byUser[email]) {
@@ -58,6 +65,7 @@ export async function GET(request) {
     if (p.video_watched) u.videosWatched++
     if (p.quiz_passed) u.modulesCompleted++
     const info = moduleInfo[p.module_id] || {}
+    const lastAttempt = lastAttemptAt[`${p.user_email}:${p.module_id}`]
     u.modules.push({
       moduleId: p.module_id,
       moduleTitle: info.title,
@@ -68,7 +76,7 @@ export async function GET(request) {
       bestScorePct: p.best_score_pct,
       attempts: p.attempts,
       completedAt: p.completed_at,
-      cooldownClearedAt: p.cooldown_cleared_at,
+      retryAllowed: !!(p.cooldown_cleared_at && lastAttempt && p.cooldown_cleared_at >= lastAttempt),
     })
     if (!u.lastActivityAt || p.updated_at > u.lastActivityAt) u.lastActivityAt = p.updated_at
   }

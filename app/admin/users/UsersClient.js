@@ -151,17 +151,26 @@ export default function UsersClient({ user }) {
                           <td style={{ padding: '8px', fontFamily: t.fontMono }}>{m.attempts}</td>
                           <td style={{ padding: '8px' }}>
                             {canRetry && (
-                              <button
-                                onClick={() => allowRetryNow(u.email, m.moduleId)}
-                                disabled={clearing === key}
-                                style={{
-                                  padding: '5px 12px', background: t.amberTint, color: t.amberDeep, border: 'none',
-                                  borderRadius: 20, fontWeight: 600, fontSize: '0.7rem', cursor: clearing === key ? 'default' : 'pointer',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {clearing === key ? 'Enabling…' : '⚡ Allow Retry Now'}
-                              </button>
+                              m.retryAllowed ? (
+                                <span style={{
+                                  padding: '5px 12px', background: t.greenTint, color: t.green,
+                                  borderRadius: 20, fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap',
+                                }}>
+                                  ✓ Retry Allowed
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => allowRetryNow(u.email, m.moduleId)}
+                                  disabled={clearing === key}
+                                  style={{
+                                    padding: '5px 12px', background: t.amberTint, color: t.amberDeep, border: 'none',
+                                    borderRadius: 20, fontWeight: 600, fontSize: '0.7rem', cursor: clearing === key ? 'default' : 'pointer',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {clearing === key ? 'Enabling…' : '⚡ Allow Retry Now'}
+                                </button>
+                              )
                             )}
                           </td>
                         </tr>
