@@ -30,6 +30,7 @@ create table if not exists questions (
   id uuid primary key default gen_random_uuid(),
   module_id uuid not null references modules(id) on delete cascade,
   question_text text not null,
+  explanation text,              -- shown to trainees after they submit
   order_index int not null default 0
 );
 

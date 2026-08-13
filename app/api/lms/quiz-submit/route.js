@@ -29,15 +29,24 @@ export async function POST(request) {
 
   const { data: questions, error: qErr } = await supabaseAdmin
     .from('questions')
-    .select('id, options(id, is_correct)')
+    .select('id, explanation, options(id, is_correct)')
     .eq('module_id', moduleId)
   if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
 
   let correctCount = 0
+  const results = []
   for (const q of questions) {
     const chosenOptionId = answers[q.id]
     const correctOption = q.options.find(o => o.is_correct)
-    if (correctOption && chosenOptionId === correctOption.id) correctCount++
+    const isCorrect = !!correctOption && chosenOptionId === correctOption.id
+    if (isCorrect) correctCount++
+    results.push({
+      questionId: q.id,
+      correctOptionId: correctOption?.id ?? null,
+      chosenOptionId: chosenOptionId ?? null,
+      isCorrect,
+      explanation: q.explanation || null,
+    })
   }
 
   const total = questions.length
@@ -79,5 +88,5 @@ export async function POST(request) {
     )
   if (upsertErr) return NextResponse.json({ error: upsertErr.message }, { status: 500 })
 
-  return NextResponse.json({ scorePct, passed, correctCount, total })
+  return NextResponse.json({ scorePct, passed, correctCount, total, results })
 }

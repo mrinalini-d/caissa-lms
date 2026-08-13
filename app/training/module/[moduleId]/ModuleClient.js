@@ -128,30 +128,61 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
     if (json.passed) onPassed()
   }
 
+  function selectAnswer(questionId, optionId) {
+    setAnswers(a => ({ ...a, [questionId]: optionId }))
+    if (result && !result.passed) setResult(null)
+  }
+
   if (error) return <p style={{ color: '#dc2626' }}>{error}</p>
   if (!questions) return <p style={{ color: '#9ca3af' }}>Loading quiz…</p>
 
   const allAnswered = questions.every(q => answers[q.id])
+  const resultByQuestion = result ? Object.fromEntries(result.results.map(r => [r.questionId, r])) : {}
 
   return (
     <div>
       <h3 style={{ fontWeight: 700, color: '#111827', marginBottom: 16, fontSize: '0.95rem' }}>Quiz — pass {passScorePct}% to continue</h3>
-      {questions.map((q, i) => (
+      {questions.map((q, i) => {
+        const qResult = resultByQuestion[q.id]
+        return (
         <div key={q.id} style={{ marginBottom: 18 }}>
           <div style={{ fontWeight: 600, color: '#111827', marginBottom: 8, fontSize: '0.88rem' }}>{i + 1}. {q.questionText}</div>
-          {q.options.map(o => (
-            <label key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid #f3f4f6', marginBottom: 6, cursor: 'pointer' }}>
-              <input
-                type="radio"
-                name={q.id}
-                checked={answers[q.id] === o.id}
-                onChange={() => setAnswers(a => ({ ...a, [q.id]: o.id }))}
-              />
-              <span style={{ fontSize: '0.85rem', color: '#374151' }}>{o.optionText}</span>
-            </label>
-          ))}
+          {q.options.map(o => {
+            let style = { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid #f3f4f6', marginBottom: 6, cursor: 'pointer' }
+            let marker = null
+            if (qResult) {
+              if (o.id === qResult.correctOptionId) {
+                style = { ...style, background: '#f0fdf4', border: '1px solid #86efac' }
+                marker = <span style={{ color: '#15803d', fontWeight: 700 }}>✓</span>
+              } else if (o.id === qResult.chosenOptionId) {
+                style = { ...style, background: '#fef2f2', border: '1px solid #fca5a5' }
+                marker = <span style={{ color: '#dc2626', fontWeight: 700 }}>✕</span>
+              }
+            }
+            return (
+              <label key={o.id} style={style}>
+                <input
+                  type="radio"
+                  name={q.id}
+                  checked={answers[q.id] === o.id}
+                  onChange={() => selectAnswer(q.id, o.id)}
+                />
+                <span style={{ fontSize: '0.85rem', color: '#374151', flex: 1 }}>{o.optionText}</span>
+                {marker}
+              </label>
+            )
+          })}
+          {qResult && qResult.explanation && (
+            <div style={{
+              marginTop: 6, padding: '8px 12px', borderRadius: 8, fontSize: '0.8rem',
+              background: qResult.isCorrect ? '#f0fdf4' : '#fffbeb', color: qResult.isCorrect ? '#15803d' : '#92400e',
+            }}>
+              💡 {qResult.explanation}
+            </div>
+          )}
         </div>
-      ))}
+        )
+      })}
 
       {result && (
         <div style={{

@@ -10,14 +10,14 @@ export async function GET(request) {
 
   const { data, error } = await supabaseAdmin
     .from('questions')
-    .select('id, module_id, question_text, order_index, options(id, option_text, is_correct, order_index)')
+    .select('id, module_id, question_text, explanation, order_index, options(id, option_text, is_correct, order_index)')
     .eq('module_id', moduleId)
     .order('order_index')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({
     questions: data.map(q => ({
-      id: q.id, moduleId: q.module_id, questionText: q.question_text, orderIndex: q.order_index,
+      id: q.id, moduleId: q.module_id, questionText: q.question_text, explanation: q.explanation, orderIndex: q.order_index,
       options: (q.options || [])
         .sort((a, b) => a.order_index - b.order_index)
         .map(o => ({ id: o.id, optionText: o.option_text, isCorrect: o.is_correct })),
@@ -28,7 +28,7 @@ export async function GET(request) {
 export async function POST(request) {
   if (!(await getAdminEmail())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { moduleId, questionText, orderIndex, options } = await request.json()
+  const { moduleId, questionText, explanation, orderIndex, options } = await request.json()
   if (!moduleId || !questionText || !Array.isArray(options) || options.length < 2) {
     return NextResponse.json({ error: 'moduleId, questionText and at least 2 options required' }, { status: 400 })
   }
@@ -38,7 +38,7 @@ export async function POST(request) {
 
   const { data: question, error: qErr } = await supabaseAdmin
     .from('questions')
-    .insert({ module_id: moduleId, question_text: questionText, order_index: orderIndex ?? 0 })
+    .insert({ module_id: moduleId, question_text: questionText, explanation: explanation || null, order_index: orderIndex ?? 0 })
     .select()
     .single()
   if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })

@@ -28,9 +28,9 @@ export default function ContentClient({ user }) {
 
   const [editModule, setEditModule] = useState(null) // { id, title, description, passScorePct, videoUrl, videoSource, uploadState } | null
 
-  const [newQuestion, setNewQuestion] = useState({ questionText: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
+  const [newQuestion, setNewQuestion] = useState({ questionText: '', explanation: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
   const [showQuizForm, setShowQuizForm] = useState(false)
-  const [editQuestion, setEditQuestion] = useState(null) // { id, orderIndex, questionText, options } | null
+  const [editQuestion, setEditQuestion] = useState(null) // { id, orderIndex, questionText, explanation, options } | null
 
   function loadChapters() {
     fetch('/api/admin/chapters').then(r => r.json()).then(j => setChapters(j.chapters || []))
@@ -173,7 +173,7 @@ export default function ContentClient({ user }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ moduleId: selectedModule.id, ...newQuestion, orderIndex: (questions?.length || 0) + 1 }),
     })
-    setNewQuestion({ questionText: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
+    setNewQuestion({ questionText: '', explanation: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
     loadQuestions(selectedModule.id)
   }
 
@@ -193,7 +193,7 @@ export default function ContentClient({ user }) {
 
   function startEditQuestion(q) {
     setEditQuestion({
-      id: q.id, orderIndex: q.orderIndex, questionText: q.questionText,
+      id: q.id, orderIndex: q.orderIndex, questionText: q.questionText, explanation: q.explanation || '',
       options: q.options.map(o => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
     })
   }
@@ -217,7 +217,7 @@ export default function ContentClient({ user }) {
     await fetch(`/api/admin/questions/${editQuestion.id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        questionText: editQuestion.questionText, options: editQuestion.options,
+        questionText: editQuestion.questionText, explanation: editQuestion.explanation, options: editQuestion.options,
         orderIndex: editQuestion.orderIndex ?? 0,
       }),
     })
@@ -404,6 +404,12 @@ export default function ContentClient({ user }) {
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                     <button style={btnGhost} onClick={() => setNewQuestion(q => ({ ...q, options: [...q.options, { optionText: '', isCorrect: false }] }))}>+ Option</button>
                   </div>
+                  <textarea
+                    style={{ ...input, resize: 'vertical', minHeight: 60 }}
+                    placeholder="Answer explanation (optional) — shown to trainees after they submit"
+                    value={newQuestion.explanation}
+                    onChange={e => setNewQuestion({ ...newQuestion, explanation: e.target.value })}
+                  />
                   <button style={btnPrimary} onClick={createQuestion}>+ Add Question</button>
                 </div>
               )}
@@ -516,6 +522,12 @@ export default function ContentClient({ user }) {
             <div style={{ marginTop: 8, marginBottom: 10 }}>
               <button style={btnGhost} onClick={() => setEditQuestion(q => ({ ...q, options: [...q.options, { optionText: '', isCorrect: false }] }))}>+ Option</button>
             </div>
+            <textarea
+              style={{ ...input, resize: 'vertical', minHeight: 60 }}
+              placeholder="Answer explanation (optional) — shown to trainees after they submit"
+              value={editQuestion.explanation}
+              onChange={e => setEditQuestion({ ...editQuestion, explanation: e.target.value })}
+            />
 
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button style={{ ...btnGhost, flex: 1 }} onClick={() => setEditQuestion(null)}>Cancel</button>

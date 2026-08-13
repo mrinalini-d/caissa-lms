@@ -5,14 +5,14 @@ import { getAdminEmail } from '@/lib/session'
 export async function PUT(request, { params }) {
   if (!(await getAdminEmail())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const { questionId } = await params
-  const { questionText, orderIndex, options } = await request.json()
+  const { questionText, explanation, orderIndex, options } = await request.json()
   if (!Array.isArray(options) || options.length < 2 || !options.some(o => o.isCorrect)) {
     return NextResponse.json({ error: 'At least 2 options required, one marked correct' }, { status: 400 })
   }
 
   const { error: qErr } = await supabaseAdmin
     .from('questions')
-    .update({ question_text: questionText, order_index: orderIndex })
+    .update({ question_text: questionText, explanation: explanation || null, order_index: orderIndex })
     .eq('id', questionId)
   if (qErr) return NextResponse.json({ error: qErr.message }, { status: 500 })
 
