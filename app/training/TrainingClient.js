@@ -75,11 +75,13 @@ export default function TrainingClient({ user }) {
     <AppShell user={user} title="Courses" subtitle="Every module you need to activate your coaching account, organized by track">
 
       {/* Hero / continue */}
-      {continueModule && (
+      {continueModule && (() => {
+        const isNew = !continueModule.module.videoWatched && !(continueModule.module.attempts > 0)
+        return (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', background: t.slate, borderRadius: 20, overflow: 'hidden', marginBottom: 34, boxShadow: t.shadow }}>
           <div style={{ padding: '30px 32px', color: '#fff', position: 'relative' }}>
             <div style={{ fontFamily: t.fontMono, fontSize: '11.5px', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: t.amber, marginBottom: 10 }}>
-              Continue where you left off
+              {isNew ? 'Start here' : 'Continue where you left off'}
             </div>
             <h2 style={{ fontFamily: t.fontHeading, fontSize: 23, color: '#fff', marginBottom: 8 }}>{continueModule.module.title}</h2>
             <p style={{ fontSize: 14, color: '#B7BECC', maxWidth: 440, lineHeight: 1.55, margin: '0 0 20px' }}>
@@ -89,7 +91,7 @@ export default function TrainingClient({ user }) {
               onClick={() => router.push(`/training/module/${continueModule.module.id}`)}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: t.amber, color: t.slate, fontWeight: 700, fontSize: '13.5px', padding: '11px 20px', borderRadius: 10, border: 'none', cursor: 'pointer' }}
             >
-              Resume module →
+              {isNew ? 'Start module →' : 'Resume module →'}
             </button>
           </div>
           <div style={{ background: t.slateSoft, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 26, borderLeft: '1px solid #2E384A' }}>
@@ -97,7 +99,8 @@ export default function TrainingClient({ user }) {
             <div style={{ marginTop: 14, fontSize: 12, color: '#AEB4C2', textAlign: 'center' }}>Overall onboarding progress</div>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 22, flexWrap: 'wrap' }}>

@@ -30,6 +30,7 @@ export default function ContentClient({ user }) {
 
   const [newQuestion, setNewQuestion] = useState({ questionText: '', options: [{ optionText: '', isCorrect: true }, { optionText: '', isCorrect: false }] })
   const [showQuizForm, setShowQuizForm] = useState(false)
+  const [editQuestion, setEditQuestion] = useState(null) // { id, orderIndex, questionText, options } | null
 
   function loadChapters() {
     fetch('/api/admin/chapters').then(r => r.json()).then(j => setChapters(j.chapters || []))
@@ -182,6 +183,48 @@ export default function ContentClient({ user }) {
     loadQuestions(selectedModule.id)
   }
 
+  async function removeQuiz() {
+    if (!confirm(`Remove the entire quiz for "${selectedModule.title}"? All ${questions.length} question(s) will be deleted, and the module will auto-complete on video watch.`)) return
+    await Promise.all(questions.map(q => fetch(`/api/admin/questions/${q.id}`, { method: 'DELETE' })))
+    setShowQuizForm(false)
+    loadQuestions(selectedModule.id)
+    loadModules(selectedChapter.id)
+  }
+
+  function startEditQuestion(q) {
+    setEditQuestion({
+      id: q.id, orderIndex: q.orderIndex, questionText: q.questionText,
+      options: q.options.map(o => ({ optionText: o.optionText, isCorrect: o.isCorrect })),
+    })
+  }
+
+  function updateEditOption(i, field, value) {
+    setEditQuestion(q => {
+      const options = [...q.options]
+      if (field === 'isCorrect') {
+        options.forEach((o, idx) => { o.isCorrect = idx === i })
+      } else {
+        options[i] = { ...options[i], [field]: value }
+      }
+      return { ...q, options }
+    })
+  }
+
+  async function saveEditQuestion() {
+    if (!editQuestion.questionText || editQuestion.options.some(o => !o.optionText)) {
+      alert('Fill in the question and all options'); return
+    }
+    await fetch(`/api/admin/questions/${editQuestion.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        questionText: editQuestion.questionText, options: editQuestion.options,
+        orderIndex: editQuestion.orderIndex ?? 0,
+      }),
+    })
+    setEditQuestion(null)
+    loadQuestions(selectedModule.id)
+  }
+
   return (
     <AdminShell user={user} title="Course Content" subtitle="Manage chapters, module videos, and MCQ quizzes">
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.3fr', gap: 20, alignItems: 'start' }}>
@@ -304,9 +347,16 @@ export default function ContentClient({ user }) {
 
         {/* Questions column */}
         <div style={card}>
-          <h3 style={{ margin: '0 0 12px', fontSize: '0.95rem', fontWeight: 700 }}>
-            Quiz {selectedModule && `— ${selectedModule.title}`}
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>
+              Quiz {selectedModule && `— ${selectedModule.title}`}
+            </h3>
+            {questions?.length > 0 && (
+              <button onClick={removeQuiz} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer' }}>
+                Remove Quiz
+              </button>
+            )}
+          </div>
           {!selectedModule && <p style={{ color: '#9ca3af', fontSize: '0.82rem' }}>Select a module to manage its quiz.</p>}
           {selectedModule && (
             <>
@@ -314,7 +364,10 @@ export default function ContentClient({ user }) {
                 <div key={q.id} style={{ ...listRow(false), cursor: 'default' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: 6 }}>{qi + 1}. {q.questionText}</div>
-                    <button onClick={() => deleteQuestion(q.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => startEditQuestion(q)} style={{ background: 'none', border: 'none', color: '#7c3aed', cursor: 'pointer' }}>✎</button>
+                      <button onClick={() => deleteQuestion(q.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                    </div>
                   </div>
                   {q.options.map(o => (
                     <div key={o.id} style={{ fontSize: '0.78rem', color: o.isCorrect ? '#15803d' : '#6b7280', display: 'flex', gap: 6 }}>
@@ -428,6 +481,45 @@ export default function ContentClient({ user }) {
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <button style={{ ...btnGhost, flex: 1 }} onClick={() => setEditModule(null)}>Cancel</button>
               <button style={{ ...btnPrimary, flex: 1 }} onClick={saveEditModule}>Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editQuestion && (
+        <div
+          onClick={() => setEditQuestion(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(15,14,26,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ ...card, width: 480, maxHeight: '85vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Edit Question</h3>
+              <button onClick={() => setEditQuestion(null)} style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <input style={input} placeholder="Question text" value={editQuestion.questionText} onChange={e => setEditQuestion({ ...editQuestion, questionText: e.target.value })} />
+            {editQuestion.options.map((o, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <input
+                  type="radio" name="edit-correct" checked={o.isCorrect}
+                  onChange={() => updateEditOption(i, 'isCorrect', true)}
+                />
+                <input
+                  style={{ ...input, marginBottom: 0, flex: 1 }} placeholder={`Option ${i + 1}`}
+                  value={o.optionText} onChange={e => updateEditOption(i, 'optionText', e.target.value)}
+                />
+              </div>
+            ))}
+            <div style={{ marginTop: 8, marginBottom: 10 }}>
+              <button style={btnGhost} onClick={() => setEditQuestion(q => ({ ...q, options: [...q.options, { optionText: '', isCorrect: false }] }))}>+ Option</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button style={{ ...btnGhost, flex: 1 }} onClick={() => setEditQuestion(null)}>Cancel</button>
+              <button style={{ ...btnPrimary, flex: 1 }} onClick={saveEditQuestion}>Save Changes</button>
             </div>
           </div>
         </div>
