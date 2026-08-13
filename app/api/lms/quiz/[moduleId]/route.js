@@ -23,7 +23,7 @@ export async function GET(request, { params }) {
   const cooldown = await getQuizCooldown(userEmail, moduleId)
   if (cooldown) {
     return NextResponse.json({
-      error: `You need to wait ${cooldown.minutesRemaining} more minute(s) before retrying this quiz.`,
+      error: `You need to wait ${cooldown.label} before retrying this quiz.`,
       cooldown,
     }, { status: 429 })
   }

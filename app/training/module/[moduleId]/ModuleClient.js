@@ -141,7 +141,7 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
       <div style={{ padding: '16px 18px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, color: '#92400e' }}>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>⏳ Take a short break before retrying</div>
         <p style={{ margin: 0, fontSize: '0.85rem' }}>
-          You can attempt this quiz again in <strong>{cooldown.minutesRemaining} minute{cooldown.minutesRemaining === 1 ? '' : 's'}</strong>.
+          You can attempt this quiz again in <strong>{cooldown.label}</strong>.
         </p>
       </div>
     )
