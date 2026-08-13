@@ -3,12 +3,21 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AppShell from '../../../components/AppShell'
 
+function formatTime(sec) {
+  if (!isFinite(sec) || sec < 0) return '0:00'
+  const m = Math.floor(sec / 60)
+  const s = Math.floor(sec % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
   const videoRef = useRef(null)
   const wrapperRef = useRef(null)
   const maxWatchedRef = useRef(0)
   const [done, setDone] = useState(alreadyWatched)
   const [playing, setPlaying] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
 
   useEffect(() => {
     if (locked) videoRef.current?.pause()
@@ -16,11 +25,14 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
 
   function handleTimeUpdate(e) {
     const t = e.target.currentTime
+    setCurrentTime(t)
     if (t > maxWatchedRef.current) maxWatchedRef.current = t
   }
 
   function handleSeeking(e) {
-    // Block seeking ahead of the furthest point actually watched.
+    // Once the video has been completed once, scrubbing anywhere (including forward) is fine.
+    if (done) return
+    // Before that: rewinding is always allowed, but skipping ahead of the furthest watched point isn't.
     if (e.target.currentTime > maxWatchedRef.current + 0.5) {
       e.target.currentTime = maxWatchedRef.current
     }
@@ -44,6 +56,15 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
     else wrapperRef.current.requestFullscreen()
   }
 
+  function seekTo(value) {
+    if (locked) return
+    const target = Number(value)
+    // Mirror the same forward-skip guard for direct scrub-bar drags.
+    const clamped = !done && target > maxWatchedRef.current ? maxWatchedRef.current : target
+    videoRef.current.currentTime = clamped
+    setCurrentTime(clamped)
+  }
+
   return (
     <div>
       <div ref={wrapperRef} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
@@ -52,6 +73,7 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
           src={videoUrl}
           controlsList="nodownload noplaybackrate nofullscreen"
           disablePictureInPicture
+          onLoadedMetadata={e => setDuration(e.target.duration)}
           onTimeUpdate={handleTimeUpdate}
           onSeeking={handleSeeking}
           onEnded={handleEnded}
@@ -62,21 +84,36 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
         />
         <div style={{
           position: 'absolute', bottom: 0, left: 0, right: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', background: 'linear-gradient(transparent, rgba(0,0,0,0.6))',
+          padding: '8px 14px 10px', background: 'linear-gradient(transparent, rgba(0,0,0,0.7))',
         }}>
-          <button onClick={togglePlay} style={{
-            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
-            width: 36, height: 36, color: 'white', fontSize: '1rem', cursor: 'pointer',
-          }}>
-            {playing ? '⏸' : '▶'}
-          </button>
-          <button onClick={toggleFullscreen} style={{
-            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
-            width: 36, height: 36, color: 'white', fontSize: '1rem', cursor: 'pointer',
-          }}>
-            ⛶
-          </button>
+          <input
+            type="range"
+            min={0}
+            max={duration || 0}
+            step={0.1}
+            value={currentTime}
+            onChange={e => seekTo(e.target.value)}
+            style={{ width: '100%', accentColor: '#7c3aed', cursor: 'pointer', display: 'block', marginBottom: 6 }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={togglePlay} style={{
+                background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+                width: 32, height: 32, color: 'white', fontSize: '0.9rem', cursor: 'pointer',
+              }}>
+                {playing ? '⏸' : '▶'}
+              </button>
+              <span style={{ color: 'white', fontSize: '0.72rem', fontVariantNumeric: 'tabular-nums' }}>
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </span>
+            </div>
+            <button onClick={toggleFullscreen} style={{
+              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8,
+              width: 32, height: 32, color: 'white', fontSize: '0.9rem', cursor: 'pointer',
+            }}>
+              ⛶
+            </button>
+          </div>
         </div>
 
         {locked && (
@@ -91,7 +128,7 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
       </div>
       {!done && !locked && (
         <p style={{ fontSize: '0.8rem', color: '#9ca3af', marginTop: 8 }}>
-          You must watch the entire video before the quiz unlocks. Skipping ahead is disabled.
+          You can rewind anytime, but skipping ahead is disabled until you finish watching once.
         </p>
       )}
     </div>
