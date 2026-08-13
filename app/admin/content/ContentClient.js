@@ -399,6 +399,18 @@ export default function ContentClient({ user }) {
                         style={{ ...input, marginBottom: 0, flex: 1 }} placeholder={`Option ${i + 1}`}
                         value={o.optionText} onChange={e => updateOption(i, 'optionText', e.target.value)}
                       />
+                      {newQuestion.options.length > 2 && (
+                        <button
+                          onClick={() => setNewQuestion(q => {
+                            const options = q.options.filter((_, idx) => idx !== i)
+                            if (!options.some(o => o.isCorrect)) options[0].isCorrect = true
+                            return { ...q, options }
+                          })}
+                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}
+                        >
+                          ✕
+                        </button>
+                      )}
                     </div>
                   ))}
                   <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -517,6 +529,18 @@ export default function ContentClient({ user }) {
                   style={{ ...input, marginBottom: 0, flex: 1 }} placeholder={`Option ${i + 1}`}
                   value={o.optionText} onChange={e => updateEditOption(i, 'optionText', e.target.value)}
                 />
+                {editQuestion.options.length > 2 && (
+                  <button
+                    onClick={() => setEditQuestion(q => {
+                      const options = q.options.filter((_, idx) => idx !== i)
+                      if (!options.some(o => o.isCorrect)) options[0].isCorrect = true
+                      return { ...q, options }
+                    })}
+                    style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             ))}
             <div style={{ marginTop: 8, marginBottom: 10 }}>
