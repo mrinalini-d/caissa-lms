@@ -32,6 +32,9 @@ export default function ContentClient({ user }) {
   const [showQuizForm, setShowQuizForm] = useState(false)
   const [editQuestion, setEditQuestion] = useState(null) // { id, orderIndex, questionText, explanation, options } | null
 
+  const [dragIndex, setDragIndex] = useState(null)
+  const [dragOverIndex, setDragOverIndex] = useState(null)
+
   function loadChapters() {
     fetch('/api/admin/chapters').then(r => r.json()).then(j => setChapters(j.chapters || []))
   }
@@ -153,6 +156,20 @@ export default function ContentClient({ user }) {
     loadModules(selectedChapter.id)
   }
 
+  function handleModuleDrop(dropIndex) {
+    if (dragIndex === null || dragIndex === dropIndex) { setDragIndex(null); setDragOverIndex(null); return }
+    const reordered = [...modules]
+    const [moved] = reordered.splice(dragIndex, 1)
+    reordered.splice(dropIndex, 0, moved)
+    setModules(reordered)
+    setDragIndex(null)
+    setDragOverIndex(null)
+    fetch('/api/admin/modules/reorder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moduleIds: reordered.map(m => m.id) }),
+    })
+  }
+
   function updateOption(i, field, value) {
     setNewQuestion(q => {
       const options = [...q.options]
@@ -258,12 +275,33 @@ export default function ContentClient({ user }) {
           {!selectedChapter && <p style={{ color: '#9ca3af', fontSize: '0.82rem' }}>Select a chapter to view its modules.</p>}
           {selectedChapter && (
             <>
-              {modules?.map(m => (
-                <div key={m.id} style={listRow(selectedModule?.id === m.id)} onClick={() => setSelectedModule(m)}>
+              {modules?.map((m, mi) => (
+                <div
+                  key={m.id}
+                  draggable
+                  onDragStart={() => setDragIndex(mi)}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverIndex(mi) }}
+                  onDragLeave={() => setDragOverIndex(idx => (idx === mi ? null : idx))}
+                  onDrop={(e) => { e.preventDefault(); handleModuleDrop(mi) }}
+                  onDragEnd={() => { setDragIndex(null); setDragOverIndex(null) }}
+                  onClick={() => setSelectedModule(m)}
+                  style={{
+                    ...listRow(selectedModule?.id === m.id),
+                    opacity: dragIndex === mi ? 0.4 : 1,
+                    outline: dragOverIndex === mi && dragIndex !== mi ? '2px dashed #7c3aed' : 'none',
+                    outlineOffset: -2,
+                  }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                    <span
+                      title="Drag to reorder"
+                      style={{ cursor: 'grab', color: '#9ca3af', fontSize: '0.9rem', flexShrink: 0, paddingTop: 4, userSelect: 'none' }}
+                    >
+                      ⠿
+                    </span>
                     <video src={m.videoUrl} muted style={{ width: 72, height: 44, borderRadius: 6, background: '#000', objectFit: 'cover', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{m.title}</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{mi + 1}. {m.title}</div>
                       <div style={{ fontSize: '0.72rem', color: '#9ca3af' }}>{m.questionCount} question{m.questionCount === 1 ? '' : 's'} · pass {m.passScorePct}%</div>
                       <a
                         href={m.videoUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
