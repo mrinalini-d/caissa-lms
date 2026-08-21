@@ -24,18 +24,20 @@ function modulePct(m) {
 }
 
 function ProgressRing({ pct }) {
-  const r = 50
-  const circumference = 2 * Math.PI * r
-  const offset = circumference - (pct / 100) * circumference
+  const size = 112, stroke = 10
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  const offset = c - (pct / 100) * c
   return (
-    <div style={{ position: 'relative', width: 118, height: 118 }}>
-      <svg viewBox="0 0 118 118" width={118} height={118} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx="59" cy="59" r={r} fill="none" stroke="#39445A" strokeWidth="9" />
-        <circle cx="59" cy="59" r={r} fill="none" stroke={t.amber} strokeWidth="9" strokeLinecap="round"
-          strokeDasharray={circumference} strokeDashoffset={offset} />
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={t.gold} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={offset} transform={`rotate(-90 ${size / 2} ${size / 2})`} />
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ fontFamily: t.fontHeading, fontSize: 24, fontWeight: 600, color: '#fff' }}>{pct}%</div>
+        <div style={{ fontFamily: t.fontHeading, fontSize: 24, fontWeight: 600, color: '#fff', lineHeight: 1 }}>{pct}%</div>
+        <div style={{ fontSize: '10.5px', color: '#B7A48A', marginTop: 5 }}>OVERALL</div>
       </div>
     </div>
   )
@@ -78,26 +80,29 @@ export default function TrainingClient({ user }) {
       {continueModule && (() => {
         const isNew = !continueModule.module.videoWatched && !(continueModule.module.attempts > 0)
         return (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 260px', background: t.slate, borderRadius: 20, overflow: 'hidden', marginBottom: 34, boxShadow: t.shadow }}>
-          <div style={{ padding: '30px 32px', color: '#fff', position: 'relative' }}>
-            <div style={{ fontFamily: t.fontMono, fontSize: '11.5px', fontWeight: 600, letterSpacing: '.08em', textTransform: 'uppercase', color: t.amber, marginBottom: 10 }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24,
+          background: `radial-gradient(120% 160% at 100% 0%, ${t.ink2} 0%, ${t.ink} 55%)`,
+          borderRadius: t.radiusLg, padding: '30px 32px', overflow: 'hidden', marginBottom: 34, boxShadow: t.shadow, position: 'relative',
+        }}>
+          <div style={{ maxWidth: 440, color: '#fff', position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: '#E4C68C', marginBottom: 12 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#7FCB6C', boxShadow: '0 0 0 3px rgba(127,203,108,0.25)' }} />
               {isNew ? 'Start here' : 'Continue where you left off'}
             </div>
-            <h2 style={{ fontFamily: t.fontHeading, fontSize: 23, color: '#fff', marginBottom: 8 }}>{continueModule.module.title}</h2>
-            <p style={{ fontSize: 14, color: '#B7BECC', maxWidth: 440, lineHeight: 1.55, margin: '0 0 20px' }}>
+            <h2 style={{ fontFamily: t.fontHeading, fontSize: 23, fontWeight: 600, color: '#fff', margin: '0 0 8px', lineHeight: 1.25 }}>{continueModule.module.title}</h2>
+            <p style={{ fontSize: '13.5px', color: '#D9C9B4', lineHeight: 1.55, margin: '0 0 20px' }}>
               {continueModule.module.description || `Part of ${continueModule.chapter.title}.`}
             </p>
             <button
               onClick={() => router.push(`/training/module/${continueModule.module.id}`)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: t.amber, color: t.slate, fontWeight: 700, fontSize: '13.5px', padding: '11px 20px', borderRadius: 10, border: 'none', cursor: 'pointer' }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: t.gold, color: '#251500', fontWeight: 700, fontSize: '13.5px', padding: '12px 20px', borderRadius: 999, border: 'none', cursor: 'pointer' }}
             >
-              {isNew ? 'Start module →' : 'Resume module →'}
+              {isNew ? 'Start module' : 'Resume module'}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15"><path d="M5 12h14M13 5l7 7-7 7" /></svg>
             </button>
           </div>
-          <div style={{ background: t.slateSoft, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 26, borderLeft: '1px solid #2E384A' }}>
-            <ProgressRing pct={data.progressPct} />
-            <div style={{ marginTop: 14, fontSize: 12, color: '#AEB4C2', textAlign: 'center' }}>Overall onboarding progress</div>
-          </div>
+          <ProgressRing pct={data.progressPct} />
         </div>
         )
       })()}
