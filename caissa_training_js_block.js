@@ -104,19 +104,28 @@ ctx.element.appendChild(root);
 // AUTH — adjust this for your NocoBase version
 // ============================================================================
 
-function getCurrentUser() {
-  // NocoBase typically exposes the logged-in user via ctx.currentUser or
-  // ctx.app / ctx.api helpers depending on version. Try the common shapes;
-  // fall back to a visible error so this is obvious to fix rather than
-  // silently mis-attributing activity to the wrong person.
-  const u = ctx.currentUser || ctx.user || (ctx.api && ctx.api.auth && ctx.api.auth.user);
-  const email = u?.email || u?.data?.email;
-  const roleName = (u?.role?.name || u?.roleName || u?.data?.role?.name || '').toLowerCase();
-  const isAdmin = ADMIN_ROLE_NAMES.includes(roleName);
-  if (!email) {
-    console.error('[Caissa Block] Could not resolve the current NocoBase user email — check getCurrentUser() in this block.');
+async function getCurrentUser() {
+  // NocoBase's own "auth:check" action returns the logged-in user for the
+  // session token ctx.api.request already attaches automatically — this is
+  // the reliable way to get the real email/role rather than guessing at
+  // ctx.currentUser shapes.
+  try {
+    const res = await ctx.api.request({ url: 'auth:check', method: 'get' });
+    const u = res?.data?.data || res?.data || {};
+    const email = u.email;
+    const roleName = (u.role?.name || u.roleName || u.role || '').toLowerCase();
+    if (!email) throw new Error('auth:check response had no email');
+    return { email, isAdmin: ADMIN_ROLE_NAMES.includes(roleName) };
+  } catch (err) {
+    console.error('[Caissa Block] auth:check failed, falling back to ctx.currentUser', err);
+    const u = ctx.currentUser || ctx.user || (ctx.api && ctx.api.auth && ctx.api.auth.user);
+    const email = u?.email || u?.data?.email;
+    const roleName = (u?.role?.name || u?.roleName || u?.data?.role?.name || '').toLowerCase();
+    if (!email) {
+      console.error('[Caissa Block] Could not resolve the current NocoBase user email — check getCurrentUser() in this block.');
+    }
+    return { email, isAdmin: ADMIN_ROLE_NAMES.includes(roleName) };
   }
-  return { email, isAdmin };
 }
 
 async function api(path, { method = 'GET', body, admin = false } = {}) {
@@ -300,7 +309,7 @@ function renderModule(container) {
         </div>
         <div class="ct-lock-overlay" id="ctLockOverlay" style="display:none;">🔒 Video locked while the quiz is in progress</div>
       </div>
-      <p id="ctHint" style="font-size:12.5px;color:#8B7C68;margin-top:8px;">${m.videoWatched ? '' : "You can rewind anytime, but skipping ahead is disabled until you finish watching once."}</p>
+      <p id="ctHint" style="font-size:12.5px;color:#8B7C68;margin-top:8px;"></p>
       ${m.description ? `<div id="ctDesc" style="margin-top:16px;"><h4 style="font-size:14px;margin-bottom:6px;">Description</h4><p style="font-size:13.5px;color:#8B7C68;line-height:1.6;">${m.description}</p></div>` : ''}
       <div id="ctQuizArea" style="margin-top:20px;"></div>
     </div>
@@ -311,17 +320,18 @@ function renderModule(container) {
   renderSidebar(grid.querySelector('#ctSidebar'));
   setupVideo(grid, m);
 
-  if (m.videoWatched && m.hasQuiz && !m.quizPassed) {
+  // No video-completion gate here — trainees can jump straight to the quiz.
+  if (m.hasQuiz && !m.quizPassed) {
     if (state.quizStarted) renderQuiz(grid.querySelector('#ctQuizArea'), m);
     else renderQuizPrompt(grid.querySelector('#ctQuizArea'));
-  } else if (m.videoWatched && !m.hasQuiz) {
+  } else if (!m.hasQuiz && m.videoWatched) {
     grid.querySelector('#ctQuizArea').innerHTML = `
       <div style="text-align:center;padding-top:16px;border-top:1px solid #EBDFC7;">
         <p style="font-size:13.5px;">✅ Module complete — no quiz required. Next module unlocked.</p>
         <button class="ct-btn ct-btn-primary" id="ctBackBtn">Back to Training</button>
       </div>`;
     grid.querySelector('#ctBackBtn').onclick = () => { state.view = 'training'; render(); loadCurriculum(); };
-  } else if (m.videoWatched && m.quizPassed) {
+  } else if (m.quizPassed) {
     grid.querySelector('#ctQuizArea').innerHTML = `<div style="text-align:center;padding-top:16px;border-top:1px solid #EBDFC7;color:#4C7A3D;font-weight:700;">✓ Quiz already passed</div>`;
   }
 }
@@ -433,9 +443,8 @@ function setupVideo(grid, mod) {
   const timeLabel = grid.querySelector('#ctTime');
   const wrap = grid.querySelector('#ctVideoWrap');
 
-  let maxWatched = 0;
-  let done = mod.videoWatched;
-
+  // Forward-skip is intentionally unrestricted here — trainees can scrub
+  // anywhere in the video, forward or back.
   function fmt(sec) {
     if (!isFinite(sec) || sec < 0) return '0:00';
     const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
@@ -444,19 +453,12 @@ function setupVideo(grid, mod) {
 
   video.addEventListener('loadedmetadata', () => { seek.max = video.duration; });
   video.addEventListener('timeupdate', () => {
-    if (video.currentTime > maxWatched) maxWatched = video.currentTime;
     seek.value = video.currentTime;
     timeLabel.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
-  });
-  video.addEventListener('seeking', () => {
-    if (done) return;
-    if (video.currentTime > maxWatched + 0.5) video.currentTime = maxWatched;
   });
   video.addEventListener('play', () => { playBtn.textContent = '⏸'; });
   video.addEventListener('pause', () => { playBtn.textContent = '▶'; });
   video.addEventListener('ended', async () => {
-    done = true;
-    grid.querySelector('#ctHint').textContent = '';
     try {
       const res = await api('video-complete', { method: 'POST', body: { moduleId: mod.id } });
       mod.videoWatched = true;
@@ -473,10 +475,7 @@ function setupVideo(grid, mod) {
     else wrap.requestFullscreen();
   });
   seek.addEventListener('input', () => {
-    const target = Number(seek.value);
-    const clamped = !done && target > maxWatched ? maxWatched : target;
-    video.currentTime = clamped;
-    seek.value = clamped;
+    video.currentTime = Number(seek.value);
   });
 }
 
@@ -754,10 +753,13 @@ function renderAdminActivity(container) {
 // BOOT
 // ============================================================================
 
-state.currentUser = getCurrentUser();
-if (!state.currentUser.email) {
-  root.innerHTML = `<div class="ct-error">Could not determine the logged-in user's email. Edit getCurrentUser() in this block for your NocoBase version.</div>`;
-} else {
-  render();
-  loadCurriculum();
-}
+(async () => {
+  root.innerHTML = `<div class="ct-loading">Loading…</div>`;
+  state.currentUser = await getCurrentUser();
+  if (!state.currentUser.email) {
+    root.innerHTML = `<div class="ct-error">Could not determine the logged-in user's email. Edit getCurrentUser() in this block for your NocoBase version.</div>`;
+  } else {
+    render();
+    loadCurriculum();
+  }
+})();

@@ -116,10 +116,8 @@ async function postVideoComplete(email, body) {
 }
 
 async function getQuiz(email, moduleId) {
-  const { data: progress } = await supabaseAdmin
-    .from('user_progress').select('video_watched').eq('user_email', email).eq('module_id', moduleId).maybeSingle()
-  if (!progress?.video_watched) return corsJson({ error: 'Watch the full video before starting the quiz' }, { status: 403 })
-
+  // Video-completion gate intentionally not enforced here — the JS block
+  // allows jumping straight to the quiz.
   const cooldown = await getQuizCooldown(email, moduleId)
   if (cooldown) return corsJson({ error: `You need to wait ${cooldown.label} before retrying this quiz.`, cooldown }, { status: 429 })
 
@@ -140,10 +138,8 @@ async function postQuizSubmit(email, body) {
   const { moduleId, answers } = body
   if (!moduleId || !answers) return corsJson({ error: 'moduleId and answers required' }, { status: 400 })
 
-  const { data: progress } = await supabaseAdmin
-    .from('user_progress').select('video_watched').eq('user_email', email).eq('module_id', moduleId).maybeSingle()
-  if (!progress?.video_watched) return corsJson({ error: 'Watch the full video before starting the quiz' }, { status: 403 })
-
+  // Video-completion gate intentionally not enforced here — the JS block
+  // allows jumping straight to the quiz.
   const cooldown = await getQuizCooldown(email, moduleId)
   if (cooldown) return corsJson({ error: `You need to wait ${cooldown.label} before retrying this quiz.`, cooldown }, { status: 429 })
 
