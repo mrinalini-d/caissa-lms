@@ -1,11 +1,13 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { getQuizCooldown } from '@/lib/quizCooldown'
-import { corsJson, verifyBlockRequest, requireBlockAdmin } from '@/lib/blockAuth'
+import { corsJson, verifyBlockRequest, requireBlockAdmin, CORS_HEADERS } from '@/lib/blockAuth'
 
 const BUCKET = 'videos'
 
 export async function OPTIONS() {
-  return corsJson({}, { status: 204 })
+  // A 204 response must not have a body — NextResponse.json() always writes
+  // one, so this needs the plain Response constructor instead.
+  return new Response(null, { status: 204, headers: CORS_HEADERS })
 }
 
 // ─────────────────────────── trainee-facing ───────────────────────────
