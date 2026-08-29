@@ -4,10 +4,17 @@ import { corsJson, verifyBlockRequest, requireBlockAdmin, CORS_HEADERS } from '@
 
 const BUCKET = 'videos'
 
-export async function OPTIONS() {
+export async function OPTIONS(request) {
   // A 204 response must not have a body — NextResponse.json() always writes
   // one, so this needs the plain Response constructor instead.
-  return new Response(null, { status: 204, headers: CORS_HEADERS })
+  // Echo back whatever headers the browser says it wants to send (NocoBase's
+  // client attaches several custom headers beyond Authorization — x-role,
+  // x-hostname, x-timezone, etc. — that vary by version) instead of trying
+  // to enumerate them all statically.
+  const requested = request.headers.get('access-control-request-headers')
+  const headers = { ...CORS_HEADERS }
+  if (requested) headers['Access-Control-Allow-Headers'] = requested
+  return new Response(null, { status: 204, headers })
 }
 
 // ─────────────────────────── trainee-facing ───────────────────────────
