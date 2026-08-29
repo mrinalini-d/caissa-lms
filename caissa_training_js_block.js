@@ -117,8 +117,10 @@ style.textContent = `
   .ct-icon-btn { background:rgba(255,255,255,.18); border:none; border-radius:8px; width:30px; height:30px; color:#fff; cursor:pointer; display:grid; place-items:center; }
   .ct-lock-overlay { position:absolute; inset:0; background:rgba(15,23,42,.8); display:flex; align-items:center; justify-content:center; gap:8px; color:#fff; font-weight:600; font-size:13px; text-align:center; padding:24px; }
   .ct-modal-backdrop { position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; z-index:9999; padding:24px; }
-  .ct-modal-box { background:var(--ct-surface); border-radius:var(--ct-radius-lg); width:80%; max-width:1000px; max-height:85vh; overflow-y:auto; padding:26px; position:relative; }
-  .ct-modal-close { position:absolute; top:16px; right:18px; background:var(--ct-neutral-soft); border:none; border-radius:8px; width:28px; height:28px; display:grid; place-items:center; color:var(--ct-ink-soft); cursor:pointer; }
+  .ct-modal-box { background:var(--ct-surface); border-radius:var(--ct-radius-lg); width:80%; max-width:1000px; max-height:85vh; padding:0; position:relative; display:flex; flex-direction:column; overflow:hidden; }
+  .ct-modal-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 24px; border-bottom:1px solid var(--ct-border); flex-shrink:0; }
+  .ct-modal-scroll { padding:20px 24px 24px; overflow-y:auto; flex:1; }
+  .ct-modal-close { background:var(--ct-neutral-soft); border:none; border-radius:8px; width:28px; height:28px; display:grid; place-items:center; color:var(--ct-ink-soft); cursor:pointer; flex-shrink:0; }
   .ct-option { display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:9px; border:1px solid var(--ct-border); margin-bottom:6px; cursor:pointer; }
   .ct-option.correct { background:var(--ct-success-soft); border-color:#86EFAC; }
   .ct-option.wrong { background:var(--ct-danger-soft); border-color:#FCA5A5; }
@@ -399,8 +401,14 @@ function openQuizModal(mod, grid) {
   backdrop.className = 'ct-modal-backdrop';
   backdrop.innerHTML = `
     <div class="ct-modal-box">
-      <button class="ct-modal-close" id="ctCloseQuiz">${ICONS.close}</button>
-      <div id="ctQuizModalBody"></div>
+      <div class="ct-modal-header">
+        <div>
+          <h3 id="ctQuizTitle" style="margin:0;font-size:16px;font-weight:700;">Quiz — pass ${mod.passScorePct}% to continue</h3>
+          <div id="ctQuizProgress" style="font-size:12px;color:var(--ct-ink-soft);margin-top:2px;"></div>
+        </div>
+        <button class="ct-modal-close" id="ctCloseQuiz">${ICONS.close}</button>
+      </div>
+      <div class="ct-modal-scroll" id="ctQuizModalBody"></div>
     </div>
   `;
   root.appendChild(backdrop);
@@ -411,10 +419,10 @@ function openQuizModal(mod, grid) {
   }
   backdrop.querySelector('#ctCloseQuiz').onclick = close;
 
-  renderQuiz(backdrop.querySelector('#ctQuizModalBody'), mod, close);
+  renderQuiz(backdrop.querySelector('#ctQuizModalBody'), mod, close, backdrop.querySelector('#ctQuizProgress'));
 }
 
-async function renderQuiz(container, mod, onPassedClose) {
+async function renderQuiz(container, mod, onPassedClose, progressEl) {
   container.innerHTML = `<div class="ct-loading">Loading quiz…</div>`;
   let quiz;
   try {
@@ -432,10 +440,12 @@ async function renderQuiz(container, mod, onPassedClose) {
 
   function draw(result) {
     const resultByQ = result ? Object.fromEntries(result.results.map(r => [r.questionId, r])) : {};
-    const allAnswered = quiz.questions.every(q => state.quizAnswers[q.id]);
+    const answeredCount = quiz.questions.filter(q => state.quizAnswers[q.id]).length;
+    const allAnswered = answeredCount === quiz.questions.length;
+
+    if (progressEl) progressEl.textContent = `Attempted ${answeredCount}/${quiz.questions.length}`;
 
     container.innerHTML = `
-      <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;">Quiz — pass ${mod.passScorePct}% to continue</h3>
       ${quiz.questions.map((q, i) => {
         const qr = resultByQ[q.id];
         return `
