@@ -422,6 +422,14 @@ function openQuizModal(mod, grid) {
   renderQuiz(backdrop.querySelector('#ctQuizModalBody'), mod, close, backdrop.querySelector('#ctQuizProgress'));
 }
 
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 async function renderQuiz(container, mod, onPassedClose, progressEl) {
   container.innerHTML = `<div class="ct-loading">Loading quiz…</div>`;
   let quiz;
@@ -436,7 +444,11 @@ async function renderQuiz(container, mod, onPassedClose, progressEl) {
     return;
   }
 
-  state.quizAnswers = state.quizAnswers || {};
+  // Randomize option order per question so it isn't the same A/B/C/D every time.
+  quiz.questions.forEach(q => shuffleArray(q.options));
+
+  // Always start a fresh attempt with no carried-over selections.
+  state.quizAnswers = {};
 
   function draw(result) {
     const resultByQ = result ? Object.fromEntries(result.results.map(r => [r.questionId, r])) : {};
@@ -473,9 +485,9 @@ async function renderQuiz(container, mod, onPassedClose, progressEl) {
       </div>` : ''}
       ${result?.passed
         ? `<button class="ct-btn ct-btn-primary" id="ctContinue">Continue</button>`
-        : `<button class="ct-btn ct-btn-primary" id="ctSubmitQuiz" ${!allAnswered ? 'disabled style="opacity:.5;cursor:not-allowed;"' : ''}>
-             ${result && !result.passed ? 'Retry Quiz' : 'Submit Quiz'}
-           </button>`
+        : result && !result.passed
+          ? `<button class="ct-btn ct-btn-primary" id="ctRetryQuiz">Retry Quiz</button>`
+          : `<button class="ct-btn ct-btn-primary" id="ctSubmitQuiz" ${!allAnswered ? 'disabled style="opacity:.5;cursor:not-allowed;"' : ''}>Submit Quiz</button>`
       }
     `;
 
@@ -493,6 +505,17 @@ async function renderQuiz(container, mod, onPassedClose, progressEl) {
         state.view = 'training';
         render();
         loadCurriculum();
+      });
+    }
+
+    const retryBtn = container.querySelector('#ctRetryQuiz');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => {
+        // Failing clears every selection and reshuffles the options —
+        // the next attempt starts from scratch, not where it left off.
+        state.quizAnswers = {};
+        quiz.questions.forEach(q => shuffleArray(q.options));
+        draw(null);
       });
     }
 
