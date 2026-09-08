@@ -591,23 +591,14 @@ function setupVideo(grid, mod) {
       exitFakeFullscreen();
       return;
     }
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-      return;
-    }
-    // NocoBase often renders this block inside an iframe without
-    // allowfullscreen, which makes the native Fullscreen API silently
-    // reject. Fall back to a CSS-only "fake" fullscreen overlay that works
-    // regardless of iframe permissions.
-    if (wrap.requestFullscreen) {
-      wrap.requestFullscreen().catch(() => {
-        wrap.classList.add('ct-fake-fullscreen');
-        document.body.style.overflow = 'hidden';
-      });
-    } else {
-      wrap.classList.add('ct-fake-fullscreen');
-      document.body.style.overflow = 'hidden';
-    }
+    // NocoBase renders this block inside an iframe without allowfullscreen,
+    // so the native Fullscreen API is blocked by the browser's permissions
+    // policy — it can throw synchronously (not just reject a promise), which
+    // silently kills the click handler. Skip it entirely and always use a
+    // CSS-only "fake" fullscreen overlay, which works regardless of iframe
+    // permissions.
+    wrap.classList.add('ct-fake-fullscreen');
+    document.body.style.overflow = 'hidden';
   });
 
   // setupVideo runs on every module render — guard so these document-level
