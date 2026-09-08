@@ -544,6 +544,8 @@ function mountTrainingVideosBlock(container) {
     .ct-module-grid { display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start; }
     .ct-video-wrap { position:relative; border-radius:var(--ct-radius-md); overflow:hidden; background:#0F172A; }
     .ct-video-wrap video { width:100%; display:block; aspect-ratio:16/9; object-fit:contain; }
+    .ct-video-wrap.ct-fake-fullscreen { position:fixed; inset:0; z-index:99999; border-radius:0; display:flex; align-items:center; justify-content:center; }
+    .ct-video-wrap.ct-fake-fullscreen video { width:100%; height:100%; max-height:100vh; }
     .ct-video-controls { position:absolute; left:0; right:0; bottom:0; padding:8px 14px 10px; background:linear-gradient(transparent, rgba(15,23,42,.75)); }
     .ct-video-controls input[type=range] { width:100%; margin-bottom:6px; accent-color:var(--ct-primary); }
     .ct-video-controls-row { display:flex; align-items:center; justify-content:space-between; }
@@ -985,10 +987,51 @@ function mountTrainingVideosBlock(container) {
     });
 
     playBtn.addEventListener('click', () => { if (video.paused) video.play(); else video.pause(); });
+
+    function exitFakeFullscreen() {
+      wrap.classList.remove('ct-fake-fullscreen');
+      document.body.style.overflow = '';
+    }
+
     fsBtn.addEventListener('click', () => {
-      if (document.fullscreenElement) document.exitFullscreen();
-      else wrap.requestFullscreen();
+      if (wrap.classList.contains('ct-fake-fullscreen')) {
+        exitFakeFullscreen();
+        return;
+      }
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+        return;
+      }
+      // NocoBase often renders this block inside an iframe without
+      // allowfullscreen, which makes the native Fullscreen API silently
+      // reject. Fall back to a CSS-only "fake" fullscreen overlay that works
+      // regardless of iframe permissions.
+      if (wrap.requestFullscreen) {
+        wrap.requestFullscreen().catch(() => {
+          wrap.classList.add('ct-fake-fullscreen');
+          document.body.style.overflow = 'hidden';
+        });
+      } else {
+        wrap.classList.add('ct-fake-fullscreen');
+        document.body.style.overflow = 'hidden';
+      }
     });
+
+    // setupVideo runs on every module render — guard so these document-level
+    // listeners are only ever attached once, not stacked on each re-render.
+    if (!document.__ctFakeFsListenersAttached) {
+      document.__ctFakeFsListenersAttached = true;
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const fake = document.querySelector('.ct-fake-fullscreen');
+        if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = ''; }
+      });
+      document.addEventListener('fullscreenchange', () => {
+        if (document.fullscreenElement) return;
+        const fake = document.querySelector('.ct-fake-fullscreen');
+        if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = ''; }
+      });
+    }
     seek.addEventListener('input', () => {
       video.currentTime = Number(seek.value);
     });
