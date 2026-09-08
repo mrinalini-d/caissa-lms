@@ -135,7 +135,17 @@ function VideoGate({ videoUrl, alreadyWatched, onComplete, locked }) {
   )
 }
 
+function shuffleArray(arr) {
+  const copy = [...arr]
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy
+}
+
 function Quiz({ moduleId, passScorePct, onPassed }) {
+  const quizTopRef = useRef(null)
   const [questions, setQuestions] = useState(null)
   const [answers, setAnswers] = useState({})
   const [result, setResult] = useState(null)
@@ -149,7 +159,8 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
       .then(json => {
         if (json.cooldown) setCooldown(json.cooldown)
         else if (json.error) setError(json.error)
-        else setQuestions(json.questions)
+        // Randomize option order per question so it isn't the same A/B/C/D every time.
+        else setQuestions(json.questions.map(q => ({ ...q, options: shuffleArray(q.options) })))
       })
   }, [moduleId])
 
@@ -166,6 +177,15 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
     if (json.error) { setError(json.error); return }
     setResult(json)
     if (json.passed) onPassed()
+  }
+
+  function retryQuiz() {
+    // Failing clears every selection and reshuffles the options — the next
+    // attempt starts from scratch, not resubmitting the same picks.
+    setAnswers({})
+    setResult(null)
+    setQuestions(qs => qs.map(q => ({ ...q, options: shuffleArray(q.options) })))
+    quizTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   function selectAnswer(questionId, optionId) {
@@ -190,7 +210,7 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
   const resultByQuestion = result ? Object.fromEntries(result.results.map(r => [r.questionId, r])) : {}
 
   return (
-    <div>
+    <div ref={quizTopRef}>
       <h3 style={{ fontWeight: 700, color: '#111827', marginBottom: 16, fontSize: '0.95rem' }}>Quiz — pass {passScorePct}% to continue</h3>
       {questions.map((q, i) => {
         const qResult = resultByQuestion[q.id]
@@ -246,17 +266,26 @@ function Quiz({ moduleId, passScorePct, onPassed }) {
         </div>
       )}
 
-      <button
-        onClick={handleSubmit}
-        disabled={!allAnswered || submitting || result?.passed}
-        style={{
-          padding: '10px 20px', background: allAnswered && !result?.passed ? '#7c3aed' : '#e5e7eb',
-          color: allAnswered && !result?.passed ? 'white' : '#9ca3af', border: 'none', borderRadius: 8,
-          fontWeight: 600, cursor: allAnswered && !result?.passed ? 'pointer' : 'not-allowed',
-        }}
-      >
-        {submitting ? 'Submitting…' : result && !result.passed ? 'Retry Quiz' : 'Submit Quiz'}
-      </button>
+      {result && !result.passed ? (
+        <button
+          onClick={retryQuiz}
+          style={{ padding: '10px 20px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+        >
+          Retry Quiz
+        </button>
+      ) : (
+        <button
+          onClick={handleSubmit}
+          disabled={!allAnswered || submitting || result?.passed}
+          style={{
+            padding: '10px 20px', background: allAnswered && !result?.passed ? '#7c3aed' : '#e5e7eb',
+            color: allAnswered && !result?.passed ? 'white' : '#9ca3af', border: 'none', borderRadius: 8,
+            fontWeight: 600, cursor: allAnswered && !result?.passed ? 'pointer' : 'not-allowed',
+          }}
+        >
+          {submitting ? 'Submitting…' : 'Submit Quiz'}
+        </button>
+      )}
     </div>
   )
 }
