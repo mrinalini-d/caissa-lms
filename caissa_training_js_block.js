@@ -588,39 +588,17 @@ function setupVideo(grid, mod) {
 
   function exitFakeFullscreen() {
     wrap.classList.remove('ct-fake-fullscreen');
-    document.body.style.overflow = '';
   }
 
   fsBtn.addEventListener('click', () => {
-    if (wrap.classList.contains('ct-fake-fullscreen')) {
-      exitFakeFullscreen();
-      return;
-    }
-    // NocoBase renders this block inside an iframe without allowfullscreen,
-    // so the native Fullscreen API is blocked by the browser's permissions
-    // policy — it can throw synchronously (not just reject a promise), which
-    // silently kills the click handler. Skip it entirely and always use a
-    // CSS-only "fake" fullscreen overlay, which works regardless of iframe
-    // permissions.
+    if (wrap.classList.contains('ct-fake-fullscreen')) { exitFakeFullscreen(); return; }
+    // Native Fullscreen API is blocked in NocoBase's iframe, so use a CSS
+    // overlay. No document.* access here — the NocoBase sandbox forbids it.
     wrap.classList.add('ct-fake-fullscreen');
-    document.body.style.overflow = 'hidden';
+    wrap.tabIndex = -1;
+    wrap.focus();
   });
-
-  // setupVideo runs on every module render — guard so these document-level
-  // listeners are only ever attached once, not stacked on each re-render.
-  if (!document.__ctFakeFsListenersAttached) {
-    document.__ctFakeFsListenersAttached = true
-    document.addEventListener('keydown', (e) => {
-      if (e.key !== 'Escape') return
-      const fake = document.querySelector('.ct-fake-fullscreen')
-      if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = '' }
-    });
-    document.addEventListener('fullscreenchange', () => {
-      if (document.fullscreenElement) return
-      const fake = document.querySelector('.ct-fake-fullscreen')
-      if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = '' }
-    });
-  }
+  wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitFakeFullscreen(); });
   function seekTo() {
     syncDuration();
     const t = Number(seek.value);

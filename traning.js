@@ -558,37 +558,19 @@
     playBtn.addEventListener('click', () => { if (video.paused) video.play(); else video.pause(); });
 
     function exitFakeFullscreen() {
-      wrap.classList.remove('ct-fake-fullscreen');
-      document.body.style.overflow = '';
-    }
+    wrap.classList.remove('ct-fake-fullscreen');
+  }
 
-    fsBtn.addEventListener('click', () => {
-      if (wrap.classList.contains('ct-fake-fullscreen')) {
-        exitFakeFullscreen();
-        return;
-      }
-      // Native Fullscreen API is blocked in NocoBase's iframe (can throw
-      // synchronously), so always use the CSS overlay.
-      wrap.classList.add('ct-fake-fullscreen');
-      document.body.style.overflow = 'hidden';
-    });
-
-    // setupVideo runs on every module render — guard so these document-level
-    // listeners are only ever attached once, not stacked on each re-render.
-    if (!document.__ctFakeFsListenersAttached) {
-      document.__ctFakeFsListenersAttached = true;
-      document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        const fake = document.querySelector('.ct-fake-fullscreen');
-        if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = ''; }
-      });
-      document.addEventListener('fullscreenchange', () => {
-        if (document.fullscreenElement) return;
-        const fake = document.querySelector('.ct-fake-fullscreen');
-        if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = ''; }
-      });
-    }
-    function seekTo() {
+  fsBtn.addEventListener('click', () => {
+    if (wrap.classList.contains('ct-fake-fullscreen')) { exitFakeFullscreen(); return; }
+    // Native Fullscreen API is blocked in NocoBase's iframe, so use a CSS
+    // overlay. No document.* access here — the NocoBase sandbox forbids it.
+    wrap.classList.add('ct-fake-fullscreen');
+    wrap.tabIndex = -1;
+    wrap.focus();
+  });
+  wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') exitFakeFullscreen(); });
+  function seekTo() {
       syncDuration();
       const t = Number(seek.value);
       if (isFinite(t)) video.currentTime = t;
