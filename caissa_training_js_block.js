@@ -561,11 +561,13 @@ function setupVideo(grid, mod) {
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
+  let scrubbing = false;
   const syncDuration = () => { if (isFinite(video.duration)) seek.max = video.duration; };
   video.addEventListener('loadedmetadata', syncDuration);
   video.addEventListener('durationchange', syncDuration);
   syncDuration();
   video.addEventListener('timeupdate', () => {
+    if (scrubbing || video.seeking) { timeLabel.textContent = `${fmt(Number(seek.value))} / ${fmt(video.duration)}`; return; }
     seek.value = video.currentTime;
     timeLabel.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
   });
@@ -624,8 +626,10 @@ function setupVideo(grid, mod) {
     const t = Number(seek.value);
     if (isFinite(t)) video.currentTime = t;
   }
-  seek.addEventListener('input', seekTo);
-  seek.addEventListener('change', seekTo);
+  seek.addEventListener('pointerdown', () => { scrubbing = true; });
+  seek.addEventListener('input', () => { scrubbing = true; seekTo(); });
+  seek.addEventListener('change', () => { seekTo(); scrubbing = false; });
+  video.addEventListener('seeked', () => { scrubbing = false; });
 }
 
 function renderSidebar(container) {
