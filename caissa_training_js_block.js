@@ -348,6 +348,10 @@ function renderModule(container) {
   grid.className = 'ct-module-grid';
   grid.innerHTML = `
     <div class="ct-card" style="padding:20px;">
+      <div id="ctQuizTop" style="display:none;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;padding:10px 14px;background:var(--ct-primary-soft);border-radius:10px;">
+        <span style="font-size:13.5px;font-weight:600;color:var(--ct-primary-dark);">Ready to test what you learned?</span>
+        <button class="ct-btn ct-btn-primary" id="ctStartQuizTop">${ICONS.checkCircle} Start Quiz</button>
+      </div>
       <div class="ct-video-wrap" id="ctVideoWrap">
         <video id="ctVideo" src="${m.videoUrl}" preload="auto" playsinline></video>
         <div class="ct-video-controls">
@@ -381,6 +385,9 @@ function renderModule(container) {
         <button class="ct-btn ct-btn-primary" id="ctStartQuiz">${ICONS.checkCircle} Start Quiz</button>
       </div>`;
     quizArea.querySelector('#ctStartQuiz').onclick = () => openQuizModal(m, grid);
+    const quizTop = grid.querySelector('#ctQuizTop');
+    quizTop.style.display = 'flex';
+    quizTop.querySelector('#ctStartQuizTop').onclick = () => openQuizModal(m, grid);
   } else if (!m.hasQuiz && m.videoWatched) {
     quizArea.innerHTML = `
       <div style="text-align:center;padding-top:16px;border-top:1px solid var(--ct-border);">
