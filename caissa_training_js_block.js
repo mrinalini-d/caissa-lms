@@ -349,7 +349,7 @@ function renderModule(container) {
   grid.innerHTML = `
     <div class="ct-card" style="padding:20px;">
       <div class="ct-video-wrap" id="ctVideoWrap">
-        <video id="ctVideo" src="${m.videoUrl}"></video>
+        <video id="ctVideo" src="${m.videoUrl}" preload="auto" playsinline></video>
         <div class="ct-video-controls">
           <input type="range" id="ctSeek" min="0" max="0" step="0.1" value="0" />
           <div class="ct-video-controls-row">
@@ -561,7 +561,10 @@ function setupVideo(grid, mod) {
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  video.addEventListener('loadedmetadata', () => { seek.max = video.duration; });
+  const syncDuration = () => { if (isFinite(video.duration)) seek.max = video.duration; };
+  video.addEventListener('loadedmetadata', syncDuration);
+  video.addEventListener('durationchange', syncDuration);
+  syncDuration();
   video.addEventListener('timeupdate', () => {
     seek.value = video.currentTime;
     timeLabel.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
@@ -616,9 +619,13 @@ function setupVideo(grid, mod) {
       if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = '' }
     });
   }
-  seek.addEventListener('input', () => {
-    video.currentTime = Number(seek.value);
-  });
+  function seekTo() {
+    syncDuration();
+    const t = Number(seek.value);
+    if (isFinite(t)) video.currentTime = t;
+  }
+  seek.addEventListener('input', seekTo);
+  seek.addEventListener('change', seekTo);
 }
 
 function renderSidebar(container) {

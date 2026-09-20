@@ -1,467 +1,14 @@
-// coach_resources_console.js — Coach Resources Console (NocoBase JS-block)
+// training.js — Caissa Coach Training (standalone NocoBase JS-block)
 //
-// Static resource hub for coaches: PGN Library, Training Videos, Test Links, Syllabus,
-// Test Score. PGN Library data is sourced from pgn_library.html; Test Links from
-// test_links.html; Syllabus topics are the full session-by-session curriculum supplied
-// directly. Any level/column not present in a source is rendered as "—" rather than invented.
-// Training Videos embeds the full Caissa Coach Training block (see training.js) — video
-// modules + quizzes backed by the caissa-lms Vercel API — mounted lazily into this tab the
-// first time it's opened (see mountTrainingVideosBlock / ensureTrainingAppLoaded below).
-// Test Score is a live, searchable list of every test attempt (fetched from the coach
-// dashboard API), separate from the static Test Links above.
+// Video modules + quizzes backed by the caissa-lms Vercel API. Previously embedded inline
+// inside resouces.js's "Training Videos" tab (mountTrainingVideosBlock); split out here as
+// its own standalone block so it can be added to a page directly, independent of the
+// Coach Resources Console. Reuses the exact same caissa-lms Vercel API + shared-secret auth.
 //
-// All external links open in a new tab. NocoBase strips <style> tags AND can drop
-// target="_blank" from anchors, so (a) everything below uses inline style="" attributes
-// with explicit width/height on every <svg>, and (b) external links use a
-// data-ext-link + JS window.open() fallback instead of relying on target="_blank" alone.
+// NocoBase strips <style> tags in some contexts, but this block injects its own <style>
+// element via document.createElement, which is not affected by that sanitizer.
 
-const requester =
-  (ctx && ctx.app && ctx.app.apiClient && ctx.app.apiClient.request.bind(ctx.app.apiClient)) ||
-  (ctx && ctx.apiClient && ctx.apiClient.request.bind(ctx.apiClient)) || null;
-
-const FONT = "'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif";
-const FONT_HEAD = "'Space Grotesk','Inter','Segoe UI',sans-serif";
-const FONT_MONO = "'IBM Plex Mono','Segoe UI Mono',monospace";
-const FONT_IMPORT = `<style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap');
-</style>`;
-
-const COLORS = {
-  bg: '#EEF3FB',
-  card: '#FFFFFF',
-  cardAlt: '#F5F8FD',
-  ink: '#16233F',
-  inkSoft: '#5B6B8C',
-  inkFaint: '#93A2C0',
-  line: '#DDE7F6',
-  lineSoft: '#E9F0FA',
-  brand: '#2F5FDB',
-  brandDark: '#1E3FA0',
-  brand10: '#E7EDFC',
-  teal: '#12A38C',
-  teal10: '#E4F6F2',
-  purple: '#7C5CFC',
-  purple10: '#EFEBFF',
-  amber: '#EE9F2E',
-  amberDark: '#B9791A',
-  amber10: '#FDF1DF',
-};
-
-function svg(size, inner, strokeWidth) {
-  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth || 1.8}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
-}
-
-const ICONS = {
-  overview: size => svg(size, `<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>`),
-  pgn: size => svg(size, `<path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v18H6.5A2.5 2.5 0 0 0 4 22.5V4.5Z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>`),
-  training: size => svg(size, `<circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5-6-3.5Z" fill="currentColor" stroke="none"/>`),
-  tests: size => svg(size, `<path d="M9 11.5 11 13.5 15.5 9"/><rect x="3" y="3" width="18" height="18" rx="4"/>`),
-  syllabus: size => svg(size, `<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4H6.5A2.5 2.5 0 0 0 4 6.5v13Z"/><path d="M8 8h8M8 11.5h8M8 15h5"/>`),
-  testScore: size => svg(size, `<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>`),
-  search: size => svg(size, `<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>`, 2),
-  chevronRight: size => svg(size, `<path d="M9 6l6 6-6 6"/>`, 2.4),
-  chevronLeft: size => svg(size, `<path d="M15 6l-6 6 6 6"/>`, 2.4),
-  chevronDown: size => svg(size, `<path d="m6 9 6 6 6-6"/>`, 2.4),
-  externalLink: size => svg(size, `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/>`, 2),
-  folder: size => svg(size, `<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z"/>`, 2),
-  image: size => svg(size, `<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>`, 2),
-  clipboardCheck: size => svg(size, `<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>`, 2),
-  inbox: size => svg(size, `<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11Z"/>`),
-  listChecks: size => svg(size, `<path d="m3 7 2 2 4-4"/><path d="m3 17 2 2 4-4"/><path d="M13 6h8M13 18h8"/>`, 2),
-  filter: size => svg(size, `<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>`, 2),
-};
-
-// ---- Source data (verbatim from pgn_library.html) ----
-const PGN_LEVELS = [
-  { label: 'BEGINNER', classwork: 'https://drive.google.com/drive/folders/1zTgFX4-vL3Sb_TXgcYpJb1pKXVLlbFgn', homework: 'https://drive.google.com/drive/folders/1HdcK34zQptmT_N9Ui44OabJE6wMy0JDg', images: null, test: 'https://drive.google.com/drive/folders/1rM4IOqC-3HaNrCKTH6W7dSAXlytob9Qy' },
-  { label: 'FOUNDATION - 1', classwork: 'https://drive.google.com/drive/folders/1F-IkMETaDhVzknPN2SBFy4QqUMTT7AYX', homework: 'https://drive.google.com/drive/folders/17H2igLUfmFLo3R3c5qBIbBpSw_8bDHxA', images: 'https://drive.google.com/drive/folders/1Qim9LAoif8jj0xwTIE-m6JHpdP1bCphb', test: 'https://drive.google.com/drive/folders/1jmLNhuA1n-NSJGxYnByzZAim28pIhkZp' },
-  { label: 'FOUNDATION - 2', classwork: 'https://drive.google.com/drive/folders/1lhV3XX4WtorIO4T0g2QnwvrQTEiMnLZE', homework: 'https://drive.google.com/drive/folders/1x9ZhFYk8qVOSu3jonZ8dh7nJvFi4CbAd', images: 'https://drive.google.com/drive/folders/1uWLSjcdFFrgx_bLGFIcRhDg-YbSgnglD', test: 'https://drive.google.com/drive/folders/1cXGT2kUaA0MltbNa8A27yg6_pJPuDEvp' },
-  { label: 'FOUNDATION - 3', classwork: 'https://drive.google.com/drive/folders/1wU9PV3IMh5vQQKKttXiosmvzMM7yrZaA', homework: 'https://drive.google.com/drive/folders/1TC9P_rJ2q8wUgH21P_a8u2ycJ7BQNG2v', images: 'https://drive.google.com/drive/folders/1EuKMXW5p0S8SiQRdvAKinLSjXGnipuoF', test: 'https://drive.google.com/drive/folders/1ppLHRFSTqhMz27omnWJlPwua6bwFsX--' },
-  { label: 'FOUNDATION - 4', classwork: 'https://drive.google.com/drive/folders/1mkbW0FqgLM8M7co9RabMipLKpPYlVh8i', homework: 'https://drive.google.com/drive/folders/16RH64vZTIioAv6ZgA7bGFfvD5Et0W0bt', images: 'https://drive.google.com/drive/folders/1_zYDnFCzJSSevpWeDQ3_hUJyHWkFqAdC', test: 'https://drive.google.com/drive/folders/1KMQ0rUNqUR-AJ0sxzA-C_SQUerITLUM2' },
-  { label: 'INTERMEDIATE', classwork: 'https://drive.google.com/drive/folders/1Hz9HO16BhwFbTG0ASFvQs_7MfchSgj8u', homework: 'https://drive.google.com/drive/folders/1VhxOCdVUiS1xrihVQqZo7GAQ01HE94LN', images: null, test: 'https://drive.google.com/drive/folders/12pToZTqNGsMLAZdMzTfgUZDExiE2hZ2L' },
-];
-
-// ---- Source data (verbatim from test_links.html) ----
-const TEST_LEVELS = [
-  { label: 'BEGINNER', tests: [
-    { name: 'Test 1 – [ Session 8 ]', url: 'https://forms.gle/xa3fSNkpUVqBk6WL7' },
-    { name: 'Test 2 – [ Session 16 ]', url: 'https://forms.gle/qLJVuk2eMHH2Bg3o6' },
-    { name: 'Final Assessment – [ Session 24 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=beginner-t24%3Atest3&bookKey=30261' },
-  ] },
-  { label: 'FOUNDATION - 1', tests: [
-    { name: 'Test 1 – [ Session 8 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-1%3Atest1&bookKey=30258' },
-    { name: 'Test 2 – [ Session 16 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-1%3Atest2&bookKey=30259' },
-    { name: 'Final Assessment – [ Session 24 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-1%3Atest3&bookKey=30260' },
-  ] },
-  { label: 'FOUNDATION - 2', tests: [
-    { name: 'Test 1 – [ Session 8 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-2%3Atest1&bookKey=31150' },
-    { name: 'Test 2 – [ Session 16 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-2%3A-test2&bookKey=31151' },
-    { name: 'Final Assessment – [ Session 24 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-2%3A-test3&bookKey=31152' },
-  ] },
-  { label: 'FOUNDATION - 3', tests: [
-    { name: 'Test 1 – [ Session 8 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-3%3A-test1&bookKey=31054' },
-    { name: 'Test 2 – [ Session 16 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-3%3A-test2&bookKey=31055' },
-    { name: 'Final Assessment – [ Session 24 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-3%3A-test3&bookKey=31060' },
-  ] },
-  { label: 'FOUNDATION - 4', tests: [
-    { name: 'Test 1 – [ Session 8 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-4%3Atest1&bookKey=31141' },
-    { name: 'Test 2 – [ Session 16 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-4%3A-test2&bookKey=31142' },
-    { name: 'Final Assessment – [ Session 24 ]', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=foundation-4%3Atest3&bookKey=31143' },
-  ] },
-  { label: 'INTERMEDIATE 1', tests: [
-    { name: 'Test 1', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-1-%3A-test-1&bookKey=8089' },
-    { name: 'Test 2', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-1-%3Atest-2&bookKey=7961' },
-    { name: 'Test 3', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-1%3A-test-3&bookKey=7974' },
-  ] },
-  { label: 'INTERMEDIATE 2', tests: [
-    { name: 'Test 1', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-2-%3A-test-1&bookKey=9687' },
-    { name: 'Test 2', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-2-%3A-test-2&bookKey=9686' },
-    { name: 'Test 3', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-2-%3A-test-3&bookKey=9688' },
-  ] },
-  { label: 'INTERMEDIATE 3', tests: [
-    { name: 'Test 1', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-3-%3A-test-1&bookKey=11533' },
-    { name: 'Test 2', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-3-%3A-test-2&bookKey=11535' },
-    { name: 'Test 3', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-3-%3A-test-3&bookKey=11536' },
-  ] },
-  { label: 'INTERMEDIATE 4', tests: [
-    { name: 'Test 1', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-4-%3A-test-1&bookKey=11596' },
-    { name: 'Test 2', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-4-%3A-test-2&bookKey=11600' },
-    { name: 'Test 3', url: 'https://learn.circlechess.com/resources?tab=user_assignment&name=intermediate-4-%3A-test-3&bookKey=11602' },
-  ] },
-];
-
-// ---- Syllabus: full session-by-session curriculum, as supplied. Intermediate's 96
-// sessions are split into 4 groups of 24 (Intermediate 1–4), renumbered 1–24 within each.
-function topics(list) {
-  return list.map((topic, i) => ({ n: i + 1, topic }));
-}
-
-const SYLLABUS_BEGINNER = topics([
-  'Chessboard, Pieces & Rook', 'Bishop, Queen, Pawn & Notation', 'King, Knight & Piece Values',
-  'Capture Basics & Hanging Pieces', 'Defending – ABCD Method', 'Checks, Defense & Checkmate Intro',
-  'Capturing – Mixed Practice', 'Test 1', 'Checks & Defending – Practice', 'Mate in 1 & other strategies',
-  'Castling', 'En Passant & Promotion', 'Assisted Mates in 1', 'Correct captures', 'Good Exchanges',
-  'Test 2', 'Mate – Mixed Exercises', 'Draws – Stalemate & Rules', 'Draws – Other Rules',
-  'Special Moves & Draws – Mixed', 'Opening traps & defence', 'Opening Principles',
-  'Mating with 2 Rooks & Queen', 'Final Assessment',
-]);
-
-const SYLLABUS_F1 = topics([
-  'Revision of Beginner topics', '1 Queen & 2 Rooks Checkmate revision', 'Pin', 'Skewer', 'Double attack',
-  'Knight fork', 'Discovered Check and Double check', 'Test [1]', 'Mate in 1 mix', 'Opening traps',
-  'Defend against Mate', 'Punishing bad opening moves', 'Back-Rank Mate', 'Simple checkmate in 2 moves',
-  'Destroying & Distracting the defender', 'Test [2]', 'Checkmate with one Rook',
-  'Queen V/s Bishop ; Queen v/s Knight', 'Mixed Tactics', 'Checkmate threat',
-  'Passed Pawn & Pawn Promotion', 'Trapping the Pieces', 'Sacrificing the pieces to mate', 'Test [3]',
-]);
-
-const SYLLABUS_F2 = topics([
-  'Revision of Foundation 1', 'Trapping the Pieces', 'Overloading', 'X-Ray Attack', 'Decoy / deflection',
-  'Opening Traps', 'Intermediate moves', 'Test [1]', 'Rule of the square', 'Key Squares & Opposition',
-  'King and Pawn vs King (4 scenerios)', 'Pawn Breakthroughs', 'Windmill', 'Forced Moves', 'Smothered Mate',
-  'Test [2]', 'Checkmating Patterns (Legals Mate & Epaulette Mate)',
-  'Checkmating Patterns (Anastasia Mate & Arabian Mate)', 'Checkmating Patterns (Bodens Mate & Dovetail Mate)',
-  'Checkmating Patterns (Battery Mate & Hook Mate)', 'Checkmating Patterns (Damianos Mate & Lollis Mate)',
-  'Checkmating Patterns (Grecos Mate & Pillsbury Mate)', 'Checkmating Patterns (Blackburne Mate & Opera Mate)',
-  'Test [3]',
-]);
-
-const SYLLABUS_F3 = topics([
-  'Revision of Foundation 2', 'Check mate in 3 (Easy)', 'Inroduction to World Champions',
-  'Attacking on h7 ideas', 'Mixed tactics (3 moves)', 'Queen vs 7th rank pawn', 'Student Game review',
-  'Test 1', 'Check mate in 3 (Difficult)', "Meet India's 1st WC & Short game", 'Attacking on g7 ideas',
-  'Mixed tactics (3 moves)', 'Stalemate tactics', 'King and Pawn vs King (Above the basic)',
-  'Student Game review', 'Test 2', "Meet India's youngest WC & his Short game", 'Attacking on f7 ideas',
-  'Mixed tactics (3 moves)', 'Drawing tactics', 'King and Pawn vs King (Above the basic)',
-  'Student Game review', 'Check Mate in 4 (Easy)', 'Test 3',
-]);
-
-const SYLLABUS_F4 = topics([
-  'Blunder Check Routine', 'Identifying Tactical Targets', 'Creating Threats (Active Thinking)',
-  'Building a Simple Attack Plan', 'Identifying Weak Defenders', 'Spotting Tactical Triggers',
-  'Turning Small Advantages Into Tactics', 'Test 1', 'Compare Two Moves', 'Eliminate Bad Moves First',
-  'Capture or Not to Capture', 'Improve Your Worst Piece', 'King Safety Evaluation',
-  '2–3 Move Mini-Calculation', 'Playing for initiative', 'Test 2', 'King and Pawn Race',
-  'Cutting Off the King', 'Lucena, Philidor', 'Theoretically drawn endgames',
-  'Slow play – Hypermodern chess', 'Solidity', 'Converting Material Advantage', 'Test 3',
-]);
-
-const INTERMEDIATE_FULL = [
-  'How to calculate (intro)', 'Centralisation of the King', 'Finding Candidate Moves (Checks, Captures, Threats)',
-  'Principle of Two Weaknesses', 'Vishy Anand', 'Do Not Hurry', 'e4 e5 Italian structures', 'Monthly test',
-  'Blunder Check', 'Passed Pawns', 'Process of Elimination', 'Schematic Thinking', 'Karpov',
-  'Transformation of Material Advantage', 'e4-e5 scotch structure', 'Monthly test', 'Forcing Moves',
-  'Rook Activity', 'Initiative', 'Pawn Breaks', 'Kasparov', 'Good Knight vs Bad Bishop Part 1',
-  'Exchange sacrifice (thematic)', 'Monthly test',
-  'Intuition', 'Good B vs Bad N part 1', 'Basic endgame tactics', 'Double Bishop Part 1', 'Bobby Fischer',
-  'Multiple Minor Piece Endgames', 'e4 c6 Caro-Kann structures', 'Monthly test', 'King Safety',
-  'Practical Rook Endgames part 1', 'Space part 1', 'Practical Rook Endgames part 2', 'Alexander Alekhine',
-  'Capablanca', 'e4 c5 Sicilian Boleslavsky structures', 'Monthly test', 'Piece Activity',
-  'Practical Queen Endgames part 1', 'Material Advantage & Pawn Structure (intro)',
-  'Practical Queen Endgames part 2', 'Key Squares and Outposts', 'Rubinstein', 'Tactics', 'Monthly test',
-  'Isolated, Doubled Pawns', 'Cut off, Back Rank Defense', 'Backward, Hanging Pawns', 'Lucena and Philidor',
-  'Mikhail Botvinnik', 'Ulf Andersson', "Prophylaxis: anticipating opponent's ideas", 'Monthly test',
-  'Passer, Majority/Minority', 'Short Side, Long Side', 'Isolated Queen Pawn', '3 vs 2, 4 vs 3',
-  'Viktor Korchnoi', 'Magnus Carlsen', 'Transition from Middlegame to Endgame', 'Monthly test',
-  'Pawn Chains part', 'Pawn Endgames', 'Sicilian Family', 'Bishop + Knight Checkmate',
-  'Slav/Caro-Kann/QGD Family', 'Anatoly Karpov', 'Handling Material Imbalances (R+P vs 2 minors etc.)',
-  'Monthly test',
-  'KID/Benoni Family', 'Same Bishop', 'Power of Two Bishops', 'Opposite Bishop',
-  'Opposite-Coloured Bishops', 'Vasily Smyslov', 'Weaknesses: creating and exploiting targets',
-  'Monthly test', 'Good Knight vs Bad Bishop', 'Fortress draw', 'Bad Piece Manoeuvring part',
-  'Winning Equal Endgames', 'Attacking Uncastled King part', 'Pentala Harikrishna',
-  'Fortress Concepts in Practice', 'Monthly test', 'Attacking the Castled King part',
-  'Queenless Middlegame', 'Sacrifice', 'Defending Worse Positions', 'Counterplay', 'Yuri Averbakh',
-  'Defending Worse Positions: practical mindset & technique', 'Monthly test',
-];
-
-const SYLLABUS_I1 = topics(INTERMEDIATE_FULL.slice(0, 24));
-const SYLLABUS_I2 = topics(INTERMEDIATE_FULL.slice(24, 48));
-const SYLLABUS_I3 = topics(INTERMEDIATE_FULL.slice(48, 72));
-const SYLLABUS_I4 = topics(INTERMEDIATE_FULL.slice(72, 96));
-
-const SYLLABUS_LEVELS = [
-  { label: 'Beginner', topics: SYLLABUS_BEGINNER },
-  { label: 'Foundation 1', topics: SYLLABUS_F1 },
-  { label: 'Foundation 2', topics: SYLLABUS_F2 },
-  { label: 'Foundation 3', topics: SYLLABUS_F3 },
-  { label: 'Foundation 4', topics: SYLLABUS_F4 },
-  { label: 'Intermediate 1', topics: SYLLABUS_I1 },
-  { label: 'Intermediate 2', topics: SYLLABUS_I2 },
-  { label: 'Intermediate 3', topics: SYLLABUS_I3 },
-  { label: 'Intermediate 4', topics: SYLLABUS_I4 },
-];
-
-// ---- Test Score: live per-attempt data from the coach-dashboard API (separate from the
-// static Test Links above). Fetched lazily the first time the Test Score tab is opened.
-const WEBINAR_DATE_FROM = '2026-06-01';
-const TEST_SCORE_PAGE_SIZE = 20;
-const COACH_DASHBOARD_API_BASE = 'https://api.circlechess.com/coach-dashboard';
-
-function addDays(dateStr, n) {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-async function fetchTestScoreRows() {
-  if (!requester) return [];
-  const today = new Date().toISOString().slice(0, 10);
-  const params = { date_from: WEBINAR_DATE_FROM, date_to: addDays(today, 1), mode: 'rows' };
-  const query = Object.entries(params)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-    .join('&');
-  const url = `${COACH_DASHBOARD_API_BASE}/test-score${query ? `?${query}` : ''}`;
-  try {
-    const res = await requester({
-      url,
-      method: 'get',
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        'X-NocoBase-Key': 'Caissa@2025',
-      },
-    });
-    return ((res && res.data && res.data.results) || []);
-  } catch (e) {
-    console.error('cc-debug test-score fetch failed:', url, e);
-    return [];
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Inline-style building blocks
-// ---------------------------------------------------------------------------
-
-function pillColor(cls) {
-  if (cls === 'blue') return COLORS.brand;
-  if (cls === 'green') return COLORS.teal;
-  if (cls === 'purple') return COLORS.purple;
-  if (cls === 'amber') return COLORS.amber;
-  return COLORS.brand;
-}
-
-function linkPill(url, label, iconFn, cls) {
-  if (!url) return `<span style="color:${COLORS.inkFaint};font-size:13px;">&mdash;</span>`;
-  return `<a href="${url}" target="_blank" rel="noopener noreferrer" data-ext-link="${url}" style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:9px;border:none;color:#fff;white-space:nowrap;background:${pillColor(cls)};">${iconFn(12)}${label}</a>`;
-}
-
-function tabItem(view, iconFn, label, active) {
-  return `
-    <button data-view="${view}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:10px 10px 0 0;font-size:13.5px;font-weight:700;color:${active ? COLORS.brandDark : COLORS.inkSoft};border:none;border-bottom:2.5px solid ${active ? COLORS.brand : 'transparent'};background:${active ? COLORS.card : 'transparent'};cursor:pointer;font-family:${FONT};">
-      <span style="display:flex;flex-shrink:0;">${iconFn(16)}</span>${label}
-    </button>`;
-}
-
-function moduleCard(iconBg, iconFg, iconFn, title, desc, meta, view) {
-  return `
-    <button data-goto="${view}" style="background:${COLORS.card};border:1px solid ${COLORS.line};border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;text-align:left;width:100%;cursor:pointer;font-family:${FONT};color:${COLORS.ink};">
-      <div style="width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:${iconBg};color:${iconFg};">${iconFn(19)}</div>
-      <h3 style="font-family:${FONT_HEAD};font-size:15px;margin:0;font-weight:600;">${title}</h3>
-      <p style="font-size:12px;color:${COLORS.inkSoft};line-height:1.5;margin:0;min-height:32px;">${desc}</p>
-      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:700;color:${COLORS.inkFaint};border-top:1px dashed ${COLORS.line};padding-top:10px;">
-        <span>${meta}</span>
-        <span style="color:${COLORS.brand};display:flex;align-items:center;gap:4px;">Open ${ICONS.chevronRight(12)}</span>
-      </div>
-    </button>`;
-}
-
-function panelWrap(title, sub, bodyHtml) {
-  return `
-    <div style="background:${COLORS.card};border:1px solid ${COLORS.line};border-radius:16px;overflow:hidden;">
-      <div style="padding:16px 20px;border-bottom:1px solid ${COLORS.lineSoft};">
-        <h2 style="font-family:${FONT_HEAD};font-size:15px;margin:0;font-weight:600;">${title}</h2>
-        ${sub ? `<div style="font-size:11.5px;color:${COLORS.inkFaint};margin-top:2px;">${sub}</div>` : ''}
-      </div>
-      ${bodyHtml}
-    </div>`;
-}
-
-function emptyPanel(title, sub) {
-  return panelWrap(title, sub, `
-    <div style="padding:38px 20px;text-align:center;color:${COLORS.inkFaint};font-size:13px;">
-      <div style="display:flex;justify-content:center;margin-bottom:10px;opacity:0.6;">${ICONS.inbox(30)}</div>
-      <div>No content added yet — links will appear here once provided.</div>
-    </div>`);
-}
-
-// ---------------------------------------------------------------------------
-// Views
-// ---------------------------------------------------------------------------
-
-function renderOverview() {
-  const pgnCount = PGN_LEVELS.length;
-  const testCount = TEST_LEVELS.reduce((s, l) => s + l.tests.length, 0);
-  return `
-    <div style="margin-bottom:20px;">
-      <h1 style="font-family:${FONT_HEAD};font-size:22px;margin:0 0 5px;font-weight:600;color:${COLORS.ink};">Coach Resources Console</h1>
-      <p style="margin:0;color:${COLORS.inkSoft};font-size:13.5px;max-width:520px;">PGN library, training resources, test links, test scores and syllabus — all in one place.</p>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:26px;">
-      ${moduleCard(COLORS.brand10, COLORS.brandDark, ICONS.pgn, 'PGN Library', 'Classwork, homework, board images and test PGNs by level.', `${pgnCount} levels`, 'pgn')}
-      ${moduleCard(COLORS.purple10, COLORS.purple, ICONS.training, 'Training Videos', 'Watch training videos and pass quizzes to unlock new modules.', 'Video training', 'training')}
-      ${moduleCard(COLORS.amber10, COLORS.amberDark, ICONS.tests, 'Test Links', 'Monthly test links to share with students, grouped by level.', `${TEST_LEVELS.length} levels · ${testCount} links`, 'tests')}
-      ${moduleCard(COLORS.teal10, COLORS.teal, ICONS.syllabus, 'Syllabus', 'Session-by-session topics, from Beginner through Intermediate 4.', `${SYLLABUS_LEVELS.length} levels`, 'syllabus')}
-      ${moduleCard(COLORS.brand10, COLORS.brandDark, ICONS.testScore, 'Test Score', 'Search every test attempt by batch code, coach or student.', 'Live data', 'testScore')}
-    </div>`;
-}
-
-function renderPgnView() {
-  const rows = PGN_LEVELS.map((lv, i) => `
-    <tr style="${i === 0 ? '' : `border-top:1px solid ${COLORS.lineSoft};`}">
-      <td style="padding:12px 20px;font-weight:700;font-size:13px;color:${COLORS.ink};">${lv.label}</td>
-      <td style="padding:12px 20px;">${linkPill(lv.classwork, 'Classwork', ICONS.folder, 'blue')}</td>
-      <td style="padding:12px 20px;">${linkPill(lv.homework, 'Homework', ICONS.folder, 'green')}</td>
-      <td style="padding:12px 20px;">${linkPill(lv.images, 'Images', ICONS.image, 'purple')}</td>
-      <td style="padding:12px 20px;">${linkPill(lv.test, 'Test PGN', ICONS.clipboardCheck, 'amber')}</td>
-    </tr>`).join('');
-  const thStyle = `text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};`;
-  return panelWrap('PGN Library', 'Classwork, homework, board images and test PGNs', `
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <thead><tr>
-          <th style="${thStyle}">Level</th><th style="${thStyle}">Class Work</th><th style="${thStyle}">Home Work</th><th style="${thStyle}">Images</th><th style="${thStyle}">Test PGN</th>
-        </tr></thead>
-        <tbody id="ccrcPgnBody">${rows}</tbody>
-      </table>
-    </div>`);
-}
-
-// The Caissa Coach Training block (mountTrainingVideosBlock, defined below) renders its own
-// header/cards/styling straight into this mount point — no panelWrap wrapper here, same as
-// how that block looked when it ran as its own standalone NocoBase JS-block.
-function renderTrainingView() {
-  return `<div id="ccrcTrainingMount"></div>`;
-}
-
-// Test Links — flat, always-expanded layout: level heading, then each test listed
-// underneath as its own row. No collapse/accordion.
-function renderTestsView() {
-  const sections = TEST_LEVELS.map((lv, i) => `
-    <div style="${i === 0 ? '' : `border-top:1px solid ${COLORS.lineSoft};`}padding:18px 20px;">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:10px;">
-        <span style="width:26px;height:26px;border-radius:8px;background:${COLORS.amber10};color:${COLORS.amberDark};display:flex;align-items:center;justify-content:center;flex-shrink:0;">${ICONS.tests(13)}</span>
-        <span style="font-family:${FONT_HEAD};font-weight:700;font-size:14px;color:${COLORS.ink};">${lv.label}</span>
-        <span style="margin-left:auto;font-size:10.5px;font-weight:700;color:${COLORS.inkFaint};background:${COLORS.cardAlt};border:1px solid ${COLORS.line};padding:3px 9px;border-radius:999px;">${lv.tests.length} link${lv.tests.length === 1 ? '' : 's'}</span>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:7px;">
-        ${lv.tests.map(t => `
-          <a href="${t.url}" target="_blank" rel="noopener noreferrer" data-ext-link="${t.url}" style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:${COLORS.brandDark};font-weight:600;padding:9px 12px;border-radius:9px;background:${COLORS.cardAlt};">
-            <span style="display:flex;flex-shrink:0;color:${COLORS.brand};">${ICONS.externalLink(13)}</span>
-            <span style="min-width:170px;flex-shrink:0;">${t.name}</span>
-            <span style="color:${COLORS.inkFaint};font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.url}</span>
-          </a>`).join('')}
-      </div>
-    </div>`).join('');
-  return panelWrap('Monthly Test Links', 'All levels — click any test to open it in a new tab', `<div id="ccrcTestSections">${sections}</div>`);
-}
-
-// Syllabus — level dropdown + session_number/topic table for the selected level.
-function renderSyllabusView() {
-  const options = SYLLABUS_LEVELS.map((lv, i) => `<option value="${i}">${lv.label}</option>`).join('');
-  const selectStyle = `border:1px solid ${COLORS.line};background:${COLORS.card};border-radius:10px;padding:9px 14px;font-family:${FONT};font-weight:700;font-size:13px;color:${COLORS.brandDark};cursor:pointer;`;
-  const bodyHtml = `
-    <div style="padding:16px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid ${COLORS.lineSoft};">
-      <span style="font-size:12.5px;font-weight:700;color:${COLORS.inkSoft};">Class type</span>
-      <select id="ccrcSyllabusSelect" style="${selectStyle}">${options}</select>
-      <span id="ccrcSyllabusCount" style="margin-left:auto;font-size:11px;font-weight:700;color:${COLORS.inkFaint};background:${COLORS.cardAlt};border:1px solid ${COLORS.line};padding:4px 10px;border-radius:999px;"></span>
-    </div>
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <thead><tr>
-          <th style="text-align:left;width:110px;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Session #</th>
-          <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Topic</th>
-        </tr></thead>
-        <tbody id="ccrcSyllabusBody"></tbody>
-      </table>
-    </div>`;
-  return panelWrap('Syllabus — Session Topics', 'Pick a class type to see its session-by-session curriculum', bodyHtml);
-}
-
-// Test Score — live, searchable list of every test attempt. Search matches batch code,
-// coach name or student name; results sorted newest-first by date.
-function renderTestScoreView() {
-  const bodyHtml = `
-    <div style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:10px;border-bottom:1px solid ${COLORS.lineSoft};flex-wrap:wrap;">
-      <div style="position:relative;">
-        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:${COLORS.brand};pointer-events:none;">${ICONS.filter(14)}</span>
-        <input id="ccrcTestScoreSearch" type="text" placeholder="Search batch code, coach or student..." style="padding:9px 12px 9px 32px;border-radius:9px;border:1px solid ${COLORS.line};background:${COLORS.card};font-size:13px;color:${COLORS.ink};min-width:280px;font-family:${FONT};">
-      </div>
-      <span id="ccrcTestScoreCount" style="font-size:11px;font-weight:700;color:${COLORS.inkFaint};background:${COLORS.cardAlt};border:1px solid ${COLORS.line};padding:4px 10px;border-radius:999px;"></span>
-    </div>
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        <thead><tr>
-          <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Date</th>
-          <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Test</th>
-          <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Batch</th>
-          <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Player</th>
-          <th style="text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.06em;color:${COLORS.inkFaint};font-weight:700;padding:11px 20px;border-bottom:1px solid ${COLORS.line};background:${COLORS.cardAlt};">Score | Total Puzzles</th>
-        </tr></thead>
-        <tbody id="ccrcTestScoreBody"></tbody>
-      </table>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-top:1px solid ${COLORS.lineSoft};">
-      <div id="ccrcTestScorePageLabel" style="font-size:12px;color:${COLORS.inkSoft};"></div>
-      <div style="display:flex;gap:8px;">
-        <button id="ccrcTestScorePrev" style="display:flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;">${ICONS.chevronLeft(12)}Prev</button>
-        <button id="ccrcTestScoreNext" style="display:flex;align-items:center;gap:5px;padding:7px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;">Next${ICONS.chevronRight(12)}</button>
-      </div>
-    </div>`;
-  return panelWrap('Test Score', 'Search every test attempt by batch code, coach or student', bodyHtml);
-}
-
-// ---------------------------------------------------------------------------
-// Training Videos — embedded Caissa Coach Training block (from training.js)
-// ---------------------------------------------------------------------------
-//
-// Ported in as-is from training.js (its own standalone NocoBase JS-block), just wrapped in a
-// factory function that mounts into a given `container` instead of taking over the whole
-// `ctx.element` — everything else (state, ICONS, api(), render(), quiz/video/admin logic) stays
-// function-scoped here so none of it collides with this file's own top-level names (this file
-// already has its own `render`/`ICONS`/`state`-shaped locals for the resources console itself).
-// Reuses the exact same caissa-lms Vercel API + shared-secret auth training.js used.
-function mountTrainingVideosBlock(container) {
+(function mountTrainingVideosBlock(container) {
   const API_BASE = 'https://caissa-lms-lyart.vercel.app/api/block';
   const BLOCK_SECRET = 'ed58d73682a25f37b009242885217289da97bb810f0f3097';
   const ADMIN_ROLE_NAMES = ['admin', 'root'];
@@ -758,8 +305,9 @@ function mountTrainingVideosBlock(container) {
     grid.className = 'ct-module-grid';
     grid.innerHTML = `
       <div class="ct-card" style="padding:20px;">
+        <div id="ctQuizTop" style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;"></div>
         <div class="ct-video-wrap" id="ctVideoWrap">
-          <video id="ctVideo" src="${m.videoUrl}"></video>
+          <video id="ctVideo" src="${m.videoUrl}" preload="auto" playsinline></video>
           <div class="ct-video-controls">
             <input type="range" id="ctSeek" min="0" max="0" step="0.1" value="0" />
             <div class="ct-video-controls-row">
@@ -781,6 +329,21 @@ function mountTrainingVideosBlock(container) {
 
     renderSidebar(grid.querySelector('#ctSidebar'));
     setupVideo(grid, m);
+
+    // Quiz button above the video (available whenever the module has a quiz);
+    // shows the score once the quiz has been taken.
+    const quizTop = grid.querySelector('#ctQuizTop');
+    const score = m.lastScorePct ?? m.bestScorePct ?? m.scorePct;
+    if (score != null) {
+      quizTop.innerHTML = `<span style="font-size:13px;font-weight:700;color:${m.quizPassed ? 'var(--ct-success)' : 'var(--ct-ink-soft)'};">Score: ${score}%</span>`;
+    }
+    if (m.hasQuiz) {
+      const topBtn = document.createElement('button');
+      topBtn.className = 'ct-btn ct-btn-primary';
+      topBtn.innerHTML = `${ICONS.checkCircle} ${score != null || m.quizPassed ? 'Retake Quiz' : 'Quiz'}`;
+      topBtn.onclick = () => openQuizModal(m, grid);
+      quizTop.appendChild(topBtn);
+    }
 
     const quizArea = grid.querySelector('#ctQuizArea');
     if (m.hasQuiz && !m.quizPassed) {
@@ -937,6 +500,7 @@ function mountTrainingVideosBlock(container) {
           submitBtn.textContent = 'Submitting…';
           try {
             const res = await api('quiz-submit', { method: 'POST', body: { moduleId: mod.id, answers: state.quizAnswers } });
+            mod.lastScorePct = res.scorePct;
             draw(res);
             if (res.passed) loadCurriculum();
           } catch (err) {
@@ -968,7 +532,10 @@ function mountTrainingVideosBlock(container) {
       return `${m}:${String(s).padStart(2, '0')}`;
     }
 
-    video.addEventListener('loadedmetadata', () => { seek.max = video.duration; });
+    const syncDuration = () => { if (isFinite(video.duration)) seek.max = video.duration; };
+    video.addEventListener('loadedmetadata', syncDuration);
+    video.addEventListener('durationchange', syncDuration);
+    syncDuration();
     video.addEventListener('timeupdate', () => {
       seek.value = video.currentTime;
       timeLabel.textContent = `${fmt(video.currentTime)} / ${fmt(video.duration)}`;
@@ -998,12 +565,8 @@ function mountTrainingVideosBlock(container) {
         exitFakeFullscreen();
         return;
       }
-      // NocoBase renders this block inside an iframe without allowfullscreen,
-      // so the native Fullscreen API is blocked by the browser's permissions
-      // policy — it can throw synchronously (not just reject a promise),
-      // which silently kills the click handler. Skip it entirely and always
-      // use a CSS-only "fake" fullscreen overlay, which works regardless of
-      // iframe permissions.
+      // Native Fullscreen API is blocked in NocoBase's iframe (can throw
+      // synchronously), so always use the CSS overlay.
       wrap.classList.add('ct-fake-fullscreen');
       document.body.style.overflow = 'hidden';
     });
@@ -1023,9 +586,13 @@ function mountTrainingVideosBlock(container) {
         if (fake) { fake.classList.remove('ct-fake-fullscreen'); document.body.style.overflow = ''; }
       });
     }
-    seek.addEventListener('input', () => {
-      video.currentTime = Number(seek.value);
-    });
+    function seekTo() {
+      syncDuration();
+      const t = Number(seek.value);
+      if (isFinite(t)) video.currentTime = t;
+    }
+    seek.addEventListener('input', seekTo);
+    seek.addEventListener('change', seekTo);
   }
 
   function renderSidebar(container) {
@@ -1306,178 +873,4 @@ function mountTrainingVideosBlock(container) {
       loadCurriculum();
     }
   })();
-}
-
-// ---------------------------------------------------------------------------
-// Render + wire up events
-// ---------------------------------------------------------------------------
-
-function render(ctx) {
-  const views = ['overview', 'pgn', 'training', 'tests', 'syllabus', 'testScore'];
-  const navMeta = {
-    overview: ICONS.overview, pgn: ICONS.pgn, training: ICONS.training, tests: ICONS.tests, syllabus: ICONS.syllabus, testScore: ICONS.testScore,
-  };
-  const navLabel = { overview: 'Overview', pgn: 'PGN Library', training: 'Training Videos', tests: 'Test Links', syllabus: 'Syllabus', testScore: 'Test Score' };
-
-  ctx.element.innerHTML = `
-    ${FONT_IMPORT}
-    <div style="font-family:${FONT};background:${COLORS.bg};border-radius:20px;overflow:hidden;color:${COLORS.ink};">
-      <div style="padding:18px 26px 0;background:${COLORS.card};border-bottom:1px solid ${COLORS.line};">
-        <div id="ccrcTabs" style="display:flex;gap:2px;flex-wrap:wrap;">
-          ${views.map(v => tabItem(v, navMeta[v], navLabel[v], v === 'overview')).join('')}
-        </div>
-      </div>
-
-      <main style="padding:22px 26px 34px;max-width:1180px;">
-        <section id="ccrc-view-overview" style="display:block;">${renderOverview()}</section>
-        <section id="ccrc-view-pgn" style="display:none;">${renderPgnView()}</section>
-        <section id="ccrc-view-training" style="display:none;">${renderTrainingView()}</section>
-        <section id="ccrc-view-tests" style="display:none;">${renderTestsView()}</section>
-        <section id="ccrc-view-syllabus" style="display:none;">${renderSyllabusView()}</section>
-        <section id="ccrc-view-testScore" style="display:none;">${renderTestScoreView()}</section>
-      </main>
-    </div>`;
-
-  const root = ctx.element;
-
-  function showView(name) {
-    views.forEach(v => {
-      root.querySelector('#ccrc-view-' + v).style.display = v === name ? 'block' : 'none';
-    });
-    root.querySelectorAll('#ccrcTabs [data-view]').forEach(btn => {
-      const active = btn.dataset.view === name;
-      btn.style.color = active ? COLORS.brandDark : COLORS.inkSoft;
-      btn.style.borderBottomColor = active ? COLORS.brand : 'transparent';
-      btn.style.background = active ? COLORS.card : 'transparent';
-    });
-    if (name === 'testScore') ensureTestScoreLoaded();
-    if (name === 'training') ensureTrainingAppLoaded();
-  }
-
-  // Training Videos block is mounted lazily (and only once) the first time that tab is
-  // opened — same "fetch on first visit" idiom as ensureTestScoreLoaded above.
-  let trainingAppMounted = false;
-  function ensureTrainingAppLoaded() {
-    if (trainingAppMounted) return;
-    trainingAppMounted = true;
-    const mount = root.querySelector('#ccrcTrainingMount');
-    if (mount) mountTrainingVideosBlock(mount);
-  }
-
-  root.querySelectorAll('#ccrcTabs [data-view]').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.view)));
-  root.querySelectorAll('[data-goto]').forEach(card => card.addEventListener('click', () => showView(card.dataset.goto)));
-
-  // Force-open in a new tab via JS rather than relying solely on target="_blank" — the
-  // same host sanitizer that strips <style> blocks can also drop the target attribute.
-  root.querySelectorAll('[data-ext-link]').forEach(a => {
-    a.addEventListener('click', e => {
-      e.preventDefault();
-      window.open(a.dataset.extLink, '_blank', 'noopener,noreferrer');
-    });
-  });
-
-  // Syllabus dropdown -> render session table for the selected level.
-  const syllabusSelect = root.querySelector('#ccrcSyllabusSelect');
-  const syllabusBody = root.querySelector('#ccrcSyllabusBody');
-  const syllabusCount = root.querySelector('#ccrcSyllabusCount');
-  function renderSyllabusTable(idx) {
-    const lv = SYLLABUS_LEVELS[idx];
-    syllabusCount.textContent = `${lv.topics.length} sessions`;
-    syllabusBody.innerHTML = lv.topics.map((t, i) => `
-      <tr style="${i === 0 ? '' : `border-top:1px solid ${COLORS.lineSoft};`}">
-        <td style="padding:10px 20px;font-weight:700;color:${COLORS.inkSoft};">${t.n}</td>
-        <td style="padding:10px 20px;color:${COLORS.ink};">${t.topic}</td>
-      </tr>`).join('');
-  }
-  if (syllabusSelect) {
-    syllabusSelect.addEventListener('change', e => renderSyllabusTable(Number(e.target.value)));
-    renderSyllabusTable(0);
-  }
-
-  // Test Score tab: fetched lazily on first visit, then filtered/paginated client-side.
-  const testScoreState = { rows: null, loading: false, search: '', page: 1 };
-
-  function testScoreFilteredSorted() {
-    const q = testScoreState.search.trim().toLowerCase();
-    const rows = testScoreState.rows || [];
-    const filtered = !q ? rows : rows.filter(r =>
-      String(r.batch_name || '').toLowerCase().includes(q) ||
-      String(r.coach_name || '').toLowerCase().includes(q) ||
-      String(r.player_name || '').toLowerCase().includes(q));
-    return filtered.slice().sort((a, b) => {
-      const da = a.milestone_session_date || '';
-      const db = b.milestone_session_date || '';
-      return da < db ? 1 : da > db ? -1 : 0;
-    });
-  }
-
-  function paintTestScore() {
-    const body = root.querySelector('#ccrcTestScoreBody');
-    const count = root.querySelector('#ccrcTestScoreCount');
-    const pageLabel = root.querySelector('#ccrcTestScorePageLabel');
-    const prevBtn = root.querySelector('#ccrcTestScorePrev');
-    const nextBtn = root.querySelector('#ccrcTestScoreNext');
-    if (!body) return;
-
-    if (testScoreState.loading) {
-      body.innerHTML = `<tr><td colspan="5" style="padding:38px 20px;text-align:center;color:${COLORS.inkFaint};font-size:13px;">Loading test scores&hellip;</td></tr>`;
-      count.textContent = '';
-      pageLabel.textContent = '';
-      prevBtn.disabled = true;
-      nextBtn.disabled = true;
-      return;
-    }
-
-    const rows = testScoreFilteredSorted();
-    const totalPages = Math.max(1, Math.ceil(rows.length / TEST_SCORE_PAGE_SIZE));
-    testScoreState.page = Math.min(testScoreState.page, totalPages);
-    const pageRows = rows.slice((testScoreState.page - 1) * TEST_SCORE_PAGE_SIZE, testScoreState.page * TEST_SCORE_PAGE_SIZE);
-
-    body.innerHTML = pageRows.length ? pageRows.map((r, i) => `
-      <tr style="${i === 0 ? '' : `border-top:1px solid ${COLORS.lineSoft};`}">
-        <td style="padding:10px 20px;color:${COLORS.ink};">${r.milestone_session_date || ''}</td>
-        <td style="padding:10px 20px;color:${COLORS.ink};">${r.test_name || ''}</td>
-        <td style="padding:10px 20px;color:${COLORS.ink};">${r.batch_name || ''}</td>
-        <td style="padding:10px 20px;color:${COLORS.ink};">${r.player_name || ''}</td>
-        <td style="padding:10px 20px;color:${COLORS.ink};font-family:${FONT_MONO};">${r.score}/${r.total_puzzles}</td>
-      </tr>`).join('') : `<tr><td colspan="5" style="padding:38px 20px;text-align:center;color:${COLORS.inkFaint};font-size:13px;">No test attempts found</td></tr>`;
-
-    count.textContent = `${rows.length} attempt${rows.length === 1 ? '' : 's'}`;
-    pageLabel.textContent = `Page ${testScoreState.page} of ${totalPages}`;
-    prevBtn.disabled = testScoreState.page <= 1;
-    nextBtn.disabled = testScoreState.page >= totalPages;
-    prevBtn.style.background = prevBtn.disabled ? COLORS.line : COLORS.brand;
-    prevBtn.style.color = prevBtn.disabled ? COLORS.inkFaint : '#fff';
-    prevBtn.style.cursor = prevBtn.disabled ? 'not-allowed' : 'pointer';
-    nextBtn.style.background = nextBtn.disabled ? COLORS.line : COLORS.brand;
-    nextBtn.style.color = nextBtn.disabled ? COLORS.inkFaint : '#fff';
-    nextBtn.style.cursor = nextBtn.disabled ? 'not-allowed' : 'pointer';
-  }
-
-  function ensureTestScoreLoaded() {
-    paintTestScore();
-    if (testScoreState.rows !== null || testScoreState.loading) return;
-    testScoreState.loading = true;
-    paintTestScore();
-    fetchTestScoreRows().then(rows => {
-      testScoreState.rows = rows;
-      testScoreState.loading = false;
-      paintTestScore();
-    });
-  }
-
-  const testScoreSearch = root.querySelector('#ccrcTestScoreSearch');
-  if (testScoreSearch) {
-    testScoreSearch.addEventListener('input', () => {
-      testScoreState.search = testScoreSearch.value;
-      testScoreState.page = 1;
-      paintTestScore();
-    });
-  }
-  const testScorePrev = root.querySelector('#ccrcTestScorePrev');
-  const testScoreNext = root.querySelector('#ccrcTestScoreNext');
-  if (testScorePrev) testScorePrev.addEventListener('click', () => { if (testScoreState.page > 1) { testScoreState.page -= 1; paintTestScore(); } });
-  if (testScoreNext) testScoreNext.addEventListener('click', () => { testScoreState.page += 1; paintTestScore(); });
-}
-
-render(ctx);
+})(ctx.element);
